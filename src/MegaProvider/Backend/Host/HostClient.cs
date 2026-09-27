@@ -47,20 +47,8 @@ internal sealed class HostClient
     public JsonNode? Call(string op, object? args = null, Action<JsonObject>? progress = null)
     {
         lock (_gate)
-        {
-            // EAGAIN is the API asking to back off; the request was not applied, so it is safe to repeat.
-            for (var attempt = 0; ; attempt++)
-            {
-                try
-                {
-                    return CallOnce(op, args, progress);
-                }
-                catch (HostException e) when (e.Code == CodeAgain && attempt < 4)
-                {
-                    Thread.Sleep(TimeSpan.FromMilliseconds(500 * (1 << attempt)));
-                }
-            }
-        }
+            return RateLimit.Retry(() => CallOnce(op, args, progress),
+                e => e is HostException { Code: CodeAgain }, RateLimit.DefaultDelays);
     }
 
     /// <summary>

@@ -179,6 +179,52 @@ Describe 'Same-named siblings' {
     }
 }
 
+# MEGAPROVIDER_FAKE_EAGAIN makes the fake refuse changes with EAGAIN, through the same retry as the host
+# (RateLimit.Retry: 4 retries). Nothing here reaches MEGA; provoking the real limit is not done on purpose.
+Describe 'Rate limiting (EAGAIN)' {
+    BeforeAll {
+        New-Item mega:\ratelimit -ItemType Directory | Out-Null
+        1..4 | ForEach-Object { Copy-Item mega:\docs\readme.txt "mega:\ratelimit\r$_.txt" }
+    }
+    AfterEach { Remove-Item env:MEGAPROVIDER_FAKE_EAGAIN -ErrorAction SilentlyContinue }
+    AfterAll { Remove-Item mega:\ratelimit -Recurse }
+
+    It 'retries a refused change until it goes through' {
+        $env:MEGAPROVIDER_FAKE_EAGAIN = '4'
+        Rename-Item mega:\ratelimit\r1.txt -NewName s1.txt
+        Test-Path mega:\ratelimit\s1.txt | Should -BeTrue
+        Rename-Item mega:\ratelimit\s1.txt -NewName r1.txt
+    }
+
+    It 'gives up after the retries and says where it stopped' {
+        $env:MEGAPROVIDER_FAKE_EAGAIN = '5'
+        $err = { Rename-Item mega:\ratelimit\r1.txt -NewName s1.txt } | Should -Throw -PassThru
+        $err.Exception.GetType().Name | Should -Be 'MegaRateLimitedException'
+        $err.Exception.Message | Should -BeLike '*Stopped at*r1.txt*'
+        Test-Path mega:\ratelimit\r1.txt | Should -BeTrue
+    }
+
+    It 'stops the whole pipeline, leaving the items before it done' {
+        $env:MEGAPROVIDER_FAKE_EAGAIN = '5@2'
+        # -ErrorAction Continue would carry on after an ordinary per-item error; this one still stops.
+        { Get-ChildItem mega:\ratelimit | Rename-Item -NewName { 's' + $_.Name.Substring(1) } -ErrorAction Continue } |
+            Should -Throw '*EAGAIN*'
+        (Get-ChildItem mega:\ratelimit).Name | Should -Be @('s1.txt', 's2.txt', 'r3.txt', 'r4.txt')
+        Remove-Item env:MEGAPROVIDER_FAKE_EAGAIN
+        Get-ChildItem mega:\ratelimit -Filter s*.txt | Rename-Item -NewName { 'r' + $_.Name.Substring(1) }
+    }
+
+    It 'stops the module cmdlets too' {
+        $handle = (Get-Item mega:\ratelimit\r4.txt).Handle
+        Remove-Item mega:\ratelimit\r4.txt
+        $env:MEGAPROVIDER_FAKE_EAGAIN = '5'
+        { Restore-MegaItem -Handle $handle -ErrorAction Continue } | Should -Throw '*EAGAIN*'
+        Remove-Item env:MEGAPROVIDER_FAKE_EAGAIN
+        Restore-MegaItem -Handle $handle | Out-Null
+        Test-Path mega:\ratelimit\r4.txt | Should -BeTrue
+    }
+}
+
 Describe 'What the fake backend cannot do' {
     It 'rejects transfers' {
         { Send-MegaItem $PSCommandPath mega:\docs -ErrorAction Stop } | Should -Throw '*does not simulate*'

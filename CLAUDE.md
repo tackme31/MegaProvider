@@ -19,7 +19,7 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
   ゴミ箱からの復元まで動く。
 - 実アカウントでの確認は `mega:\MegaProviderTest` の下で行う（テスト用アカウントの砂場）。
 - いまは Windows 専用。Linux には対応する予定、macOS には対応しない。必要な作業は `docs/COMMANDS.md` の「3.」。
-- **次の一手**: `docs/COMMANDS.md` の「3.」にある大量処理の実地確認。そのあと「2. 実装しておくとよいもの」。
+- **次の一手**: プロダクトとして出すための残り（`docs/COMMANDS.md` の「4.」にあるパイプ名の版、README を仕上げる）。そのあと「2. 実装しておくとよいもの」。
   既知の問題は同じファイルの「4.」。
 - バックエンドは 3 つあり、`$env:MEGAPROVIDER_BACKEND` で選ぶ（`Backend/BackendHost.cs`）。
   - 既定: **SDK の常駐プロセス**（`native/`、`megaprovider-host.exe`）。MegaExplorer の `IMegaClient` を
@@ -149,7 +149,9 @@ dotnet build                     # MegaProvider.sln
   （フォルダのコピー、移動）は同名の兄弟ができる**。上書きという操作は API に存在しない。
 - **`Remove-Item` はゴミ箱への移動にする。完全削除は実装しない。** undo が無いので、スクリプトが
   暴発したときの最後の砦になる。
-- 大量の変更を短時間に投げると EAGAIN（レート制限）が返る。一括処理にはリトライと同時実行数の制限が要る。
+- 大量の変更を短時間に投げると EAGAIN（レート制限）が返る。送り直しと、諦めたときにパイプラインを止める処理がある
+  （`Backend/RateLimit.cs`）。**EAGAIN をわざと引き出す試験はしない**（負荷試験になる）。確かめるときは
+  偽バックエンドの `MEGAPROVIDER_FAKE_EAGAIN` で模擬する。
 - Git Bash は引数の裸の `/` を `C:/Program Files/Git/` に書き換える。MEGA のルートを `/` で渡すコマンドを
   Git Bash から叩くときは注意（megatool はルートを `.` にして避けた）。
 

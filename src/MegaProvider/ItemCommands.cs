@@ -52,7 +52,7 @@ public abstract class MegaItemCommandBase : PSCmdlet
     // Ctrl+C: PowerShell calls this on another thread while ProcessRecord is blocked in a transfer.
     protected override void StopProcessing() => BackendHost.Backend.CancelTransfer();
 
-    /// <summary>One failed item should not stop the rest of a pipeline.</summary>
+    /// <summary>One failed item should not stop the rest of a pipeline, unless the next would fail the same way.</summary>
     protected void Try(string target, Action action)
     {
         try
@@ -62,6 +62,10 @@ public abstract class MegaItemCommandBase : PSCmdlet
         catch (MegaNotConnectedException e)
         {
             ThrowTerminatingError(new ErrorRecord(e, "NotConnected", ErrorCategory.AuthenticationError, null));
+        }
+        catch (MegaRateLimitedException e)
+        {
+            ThrowTerminatingError(new ErrorRecord(e.StoppedAt(target), "RateLimited", ErrorCategory.LimitsExceeded, target));
         }
         catch (OperationCanceledException) when (Stopping)
         {

@@ -142,7 +142,9 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
                 WriteItemObject(child.Name, MakePath(path, child.Name), child.IsFolder);
     }
 
-    protected override void RenameItem(string path, string newName)
+    protected override void RenameItem(string path, string newName) => StopIfRateLimited(path, () => Rename(path, newName));
+
+    private void Rename(string path, string newName)
     {
         if (!IsUnambiguous(path) || !ShouldProcess(path, $"Rename to '{newName}'")) return;
         // MEGA would accept a duplicate name, but in a bulk rename that is almost always two
@@ -159,7 +161,10 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
         WriteItemObject(renamed, MakePath(GetParentPath(path, ""), renamed.Name), renamed.IsFolder);
     }
 
-    protected override void NewItem(string path, string itemTypeName, object newItemValue)
+    protected override void NewItem(string path, string itemTypeName, object newItemValue) =>
+        StopIfRateLimited(path, () => NewFolder(path, itemTypeName));
+
+    private void NewFolder(string path, string itemTypeName)
     {
         if (!string.Equals(itemTypeName, "Directory", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(itemTypeName, "Folder", StringComparison.OrdinalIgnoreCase))
@@ -175,7 +180,9 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
 
     // The destination must be an existing folder. MEGA would add a same-named sibling rather than
     // replace anything, so a name that already exists there is refused, as for Rename-Item.
-    protected override void MoveItem(string path, string destination)
+    protected override void MoveItem(string path, string destination) => StopIfRateLimited(path, () => Move(path, destination));
+
+    private void Move(string path, string destination)
     {
         if (!IsUnambiguous(path, destination)) return;
         var self = Backend.Get(ToMegaPath(path));
@@ -194,7 +201,10 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
     // A destination that is an existing folder receives the item under its own name; any other
     // destination names the copy. A name already taken there is refused: MEGA would stack a file
     // onto it as a version (or drop an identical one silently) and would add a same-named folder.
-    protected override void CopyItem(string path, string copyPath, bool recurse)
+    protected override void CopyItem(string path, string copyPath, bool recurse) =>
+        StopIfRateLimited(path, () => Copy(path, copyPath, recurse));
+
+    private void Copy(string path, string copyPath, bool recurse)
     {
         if (!IsUnambiguous(path, copyPath)) return;
         var source = Backend.Get(ToMegaPath(path));
@@ -233,10 +243,24 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
 
     // Remove-Item goes to the Rubbish Bin, never a permanent delete: there is no undo on this drive.
     // Restore-MegaItem puts it back.
-    protected override void RemoveItem(string path, bool recurse)
+    protected override void RemoveItem(string path, bool recurse) => StopIfRateLimited(path, () =>
     {
         if (!IsUnambiguous(path) || !ShouldProcess(path, "Move to Rubbish Bin")) return;
         Backend.MoveToRubbish(ToMegaPath(path));
+    });
+
+    // Any other failure is per item and the pipeline goes on. This one stops it: MEGA would refuse the
+    // next items too, and stopping leaves the done ones as a prefix of the input to resume after.
+    private void StopIfRateLimited(string path, Action change)
+    {
+        try
+        {
+            change();
+        }
+        catch (MegaRateLimitedException e)
+        {
+            ThrowTerminatingError(new ErrorRecord(e.StoppedAt(path), "RateLimited", ErrorCategory.LimitsExceeded, path));
+        }
     }
 
     private static ErrorRecord NotFound(string path) =>

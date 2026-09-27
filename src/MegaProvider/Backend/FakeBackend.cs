@@ -72,31 +72,53 @@ public sealed class FakeBackend : IMegaBackend
     public IReadOnlyList<MegaItem> List(string folderPath) =>
         RequireFolder(folderPath).Children.Select(c => c.ToItem()).ToList();
 
-    public MegaItem CreateFolder(string parentPath, string name) => Add(RequireFolder(parentPath), name, true).ToItem();
+    // MEGAPROVIDER_FAKE_EAGAIN=n[@k]: after k changes (counted from when the value was set), each change is
+    // refused with EAGAIN n times before it goes through. Read on each call so a test can set it.
+    // Exercises the same retry as the host, without the waits.
+    private sealed class AgainException() : Exception("EAGAIN (simulated)");
 
-    public MegaItem Rename(string path, string newName)
+    private static readonly TimeSpan[] NoDelays = RateLimit.DefaultDelays.Select(_ => TimeSpan.Zero).ToArray();
+
+    private string? _eagainSetting;
+    private int _changesSinceSetting;
+
+    private T Change<T>(Func<T> apply)
+    {
+        var setting = Environment.GetEnvironmentVariable("MEGAPROVIDER_FAKE_EAGAIN");
+        if (setting != _eagainSetting)
+            (_eagainSetting, _changesSinceSetting) = (setting, 0);
+        var parts = (setting ?? "0").Split('@');
+        var refusals = _changesSinceSetting++ >= (parts.Length > 1 ? int.Parse(parts[1]) : 0) ? int.Parse(parts[0]) : 0;
+        var attempt = 0;
+        return RateLimit.Retry(() => attempt++ < refusals ? throw new AgainException() : apply(), e => e is AgainException, NoDelays);
+    }
+
+    public MegaItem CreateFolder(string parentPath, string name) =>
+        Change(() => Add(RequireFolder(parentPath), name, true).ToItem());
+
+    public MegaItem Rename(string path, string newName) => Change(() =>
     {
         var n = Require(path);
         n.Name = newName;
         n.Modified = DateTime.Now;
         return n.ToItem();
-    }
+    });
 
-    public MegaItem Move(string path, string destinationFolderPath)
+    public MegaItem Move(string path, string destinationFolderPath) => Change(() =>
     {
         var n = Require(path);
         Reparent(n, RequireFolder(destinationFolderPath));
         return n.ToItem();
-    }
+    });
 
-    public MegaItem Copy(string path, string destinationFolderPath, string newName)
+    public MegaItem Copy(string path, string destinationFolderPath, string newName) => Change(() =>
     {
         // Clone before attaching, so copying a folder into itself cannot recurse forever.
         var copy = Clone(Require(path), null);
         copy.Name = newName;
         Reparent(copy, RequireFolder(destinationFolderPath));
         return copy.ToItem();
-    }
+    });
 
     private Node Clone(Node n, Node? parent)
     {
@@ -105,16 +127,17 @@ public sealed class FakeBackend : IMegaBackend
         return c;
     }
 
-    public void MoveToRubbish(string path)
+    public void MoveToRubbish(string path) => Change(() =>
     {
         var n = Require(path);
         n.RestoreParent = n.Parent;
         Reparent(n, _rubbish);
-    }
+        return true;
+    });
 
     public IReadOnlyList<MegaItem> ListRubbish() => _rubbish.Children.Select(c => c.ToItem()).ToList();
 
-    public string Restore(string handle, string? destinationFolderPath)
+    public string Restore(string handle, string? destinationFolderPath) => Change(() =>
     {
         var n = _rubbish.Children.FirstOrDefault(c => c.Handle == handle)
                 ?? throw new MegaItemNotFoundException($"No item with handle '{handle}' in the Rubbish Bin.");
@@ -124,7 +147,7 @@ public sealed class FakeBackend : IMegaBackend
         Reparent(n, target);
         n.RestoreParent = null;
         return PathOf(n);
-    }
+    });
 
     public MegaItem Upload(string localPath, string destinationFolderPath, Action<long, long>? progress = null) =>
         throw new NotSupportedException("The fake backend does not simulate uploads.");
