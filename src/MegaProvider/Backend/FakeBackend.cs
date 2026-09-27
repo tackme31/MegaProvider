@@ -89,6 +89,22 @@ public sealed class FakeBackend : IMegaBackend
         return n.ToItem();
     }
 
+    public MegaItem Copy(string path, string destinationFolderPath, string newName)
+    {
+        // Clone before attaching, so copying a folder into itself cannot recurse forever.
+        var copy = Clone(Require(path), null);
+        copy.Name = newName;
+        Reparent(copy, RequireFolder(destinationFolderPath));
+        return copy.ToItem();
+    }
+
+    private Node Clone(Node n, Node? parent)
+    {
+        var c = new Node { Handle = $"h{++_nextHandle:x6}", Name = n.Name, IsFolder = n.IsFolder, Size = n.Size, Modified = n.Modified, Parent = parent };
+        c.Children = n.Children.Select(child => Clone(child, c)).ToList();
+        return c;
+    }
+
     public void MoveToRubbish(string path)
     {
         var n = Require(path);

@@ -105,6 +105,49 @@ Describe 'Changes' {
     }
 }
 
+Describe 'Copying' {
+    BeforeAll { New-Item mega:\copies -ItemType Directory | Out-Null }
+    AfterAll { Remove-Item mega:\copies -Recurse }
+
+    It 'copies a file into a folder, keeping the original' {
+        (Copy-Item mega:\docs\readme.txt mega:\copies -PassThru).PSPath | Should -BeLike '*::copies\readme.txt'
+        (Get-Item mega:\copies\readme.txt).Handle | Should -Not -Be (Get-Item mega:\docs\readme.txt).Handle
+        (Get-Item mega:\copies\readme.txt).Size | Should -Be 1200
+    }
+
+    It 'copies under a new name' {
+        Copy-Item mega:\docs\notes.txt mega:\copies\notes-copy.txt
+        (Get-Item mega:\copies\notes-copy.txt).Size | Should -Be 340
+    }
+
+    It 'copies through the pipeline' {
+        New-Item mega:\copies\piped -ItemType Directory | Out-Null
+        Get-ChildItem mega:\docs -File | Copy-Item -Destination mega:\copies\piped
+        (Get-ChildItem mega:\copies\piped).Name | Should -Be @('readme.txt', 'notes.txt')
+    }
+
+    It 'refuses a name that already exists in the destination' {
+        { Copy-Item mega:\docs\readme.txt mega:\copies -ErrorAction Stop } | Should -Throw '*already exists*'
+        { Copy-Item mega:\docs\readme.txt mega:\docs -ErrorAction Stop } | Should -Throw '*already exists*'
+    }
+
+    It 'needs -Recurse for a folder, and then copies everything in it' {
+        { Copy-Item mega:\photos\2024 mega:\copies -ErrorAction Stop } | Should -Throw '*-Recurse*'
+        Test-Path mega:\copies\2024 | Should -BeFalse
+        Copy-Item mega:\photos\2024 mega:\copies -Recurse
+        (Get-ChildItem mega:\copies\2024).Count | Should -Be 5
+    }
+
+    It 'does nothing under -WhatIf' {
+        Copy-Item mega:\docs\readme.txt mega:\copies\whatif.txt -WhatIf
+        Test-Path mega:\copies\whatif.txt | Should -BeFalse
+    }
+
+    It 'refuses an ambiguous source' {
+        { Copy-Item mega:\dup.txt mega:\copies -ErrorAction Stop } | Should -Throw '*ambiguous*'
+    }
+}
+
 Describe 'Same-named siblings' {
     It 'lists and reads them, but refuses to change them by path' {
         (Get-Item mega:\dup.txt).Name | Should -Be 'dup.txt'

@@ -149,6 +149,38 @@ Describe 'Folders, moving and the Rubbish Bin' {
     }
 }
 
+# The MEGAcmd backend has no Copy yet (its cp is unmeasured).
+Describe 'Copying' -Skip:(-not $isHost) {
+    BeforeAll { New-Item "$R\copies" -ItemType Directory | Out-Null }
+
+    It 'copies a file into a folder under its own name, keeping the original' {
+        $copy = Copy-Item "$R\A.txt" "$R\copies" -PassThru
+        $copy.PSPath | Should -BeLike '*\copies\A.txt'
+        $copy.Handle | Should -Not -Be (Get-Item "$R\A.txt").Handle
+        Receive-MegaItem "$R\copies\A.txt" $down | Get-Content | Should -Be 'hello, version 2'
+    }
+
+    It 'copies under a new name, and through the pipeline' {
+        (Copy-Item "$R\A.txt" "$R\copies\renamed.txt" -PassThru).Name | Should -Be 'renamed.txt'
+        Get-ChildItem "$R\moved" -File | Copy-Item -Destination "$R\copies"
+        (Get-ChildItem "$R\copies" -File).Name | Sort-Object |
+            Should -Be @('A.txt', 'renamed.txt', 'trip_0001.jpg', 'trip_0002.jpg')
+    }
+
+    It 'refuses a name that exists in the destination, adding no version' {
+        { Copy-Item "$R\trip_0002.jpg" "$R\copies" -ErrorAction Stop } | Should -Throw '*already exists*'
+        @(Get-ChildItem "$R\copies" -Filter trip_0002.jpg) | Should -HaveCount 1
+        (Get-Item "$R\copies\trip_0002.jpg").Size | Should -Be (Get-Item "$R\moved\trip_0002.jpg").Size
+    }
+
+    It 'needs -Recurse for a folder, and then copies everything in it' {
+        { Copy-Item "$R\moved" "$R\copies" -ErrorAction Stop } | Should -Throw '*-Recurse*'
+        Copy-Item "$R\moved" "$R\copies" -Recurse
+        Get-ChildItem "$R\copies\moved" -Recurse -Name | Sort-Object |
+            Should -Be @('sub', 'sub\x.txt', 'trip_0001.jpg', 'trip_0002.jpg')
+    }
+}
+
 Describe 'The SDK host' -Skip:(-not $isHost) {
     It 'comes back by itself after being killed' {
         Get-Process megaprovider-host | Stop-Process -Force

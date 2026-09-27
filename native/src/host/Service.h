@@ -39,6 +39,7 @@ private:
     Json mkdir(const Json& args);
     Json rename(const Json& args);
     Json move(const Json& args);
+    Json copy(const Json& args);
     Json trash(const Json& args);
     Json upload(const Json& args, const Emit& emit);
     Json download(const Json& args, const Emit& emit);

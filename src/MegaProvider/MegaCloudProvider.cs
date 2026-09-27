@@ -175,6 +175,46 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
         WriteItemObject(moved, MakePath(ToProviderPath(ToMegaPath(destination)), moved.Name), moved.IsFolder);
     }
 
+    // A destination that is an existing folder receives the item under its own name; any other
+    // destination names the copy. A name already taken there is refused: MEGA would stack a file
+    // onto it as a version (or drop an identical one silently) and would add a same-named folder.
+    protected override void CopyItem(string path, string copyPath, bool recurse)
+    {
+        if (!IsUnambiguous(path, copyPath)) return;
+        var source = Backend.Get(ToMegaPath(path));
+        if (source is null)
+        {
+            WriteError(NotFound(path));
+            return;
+        }
+        if (source.IsFolder && !recurse)
+        {
+            WriteError(new ErrorRecord(new InvalidOperationException(
+                    $"'{path}' is a folder. MEGA copies a folder with everything in it; use -Recurse to confirm."),
+                "CopyFolderNeedsRecurse", ErrorCategory.InvalidOperation, path));
+            return;
+        }
+        string destFolder, name;
+        if (Backend.Get(ToMegaPath(copyPath)) is { IsFolder: true })
+            (destFolder, name) = (copyPath, source.Name);
+        else
+            (destFolder, name) = (GetParentPath(copyPath, ""), GetChildName(copyPath));
+        if (Backend.Get(ToMegaPath(destFolder)) is not { IsFolder: true })
+        {
+            WriteError(NotFound(destFolder));
+            return;
+        }
+        if (Backend.List(ToMegaPath(destFolder)).Any(c => c.Name == name))
+        {
+            WriteError(new ErrorRecord(new InvalidOperationException($"An item named '{name}' already exists in '{destFolder}'."),
+                "CopyTargetExists", ErrorCategory.ResourceExists, path));
+            return;
+        }
+        if (!ShouldProcess(path, $"Copy to '{MakePath(destFolder, name)}'")) return;
+        var copied = Backend.Copy(ToMegaPath(path), ToMegaPath(destFolder), name);
+        WriteItemObject(copied, MakePath(ToProviderPath(ToMegaPath(destFolder)), copied.Name), copied.IsFolder);
+    }
+
     // Remove-Item goes to the Rubbish Bin, never a permanent delete: there is no undo on this drive.
     // Restore-MegaItem puts it back.
     protected override void RemoveItem(string path, bool recurse)

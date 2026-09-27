@@ -61,6 +61,14 @@ std::string requireString(const Json& args, const char* key)
     return v.get<std::string>();
 }
 
+// Missing or null means "not given" (the C# side serializes unset optional fields as null).
+std::string optionalString(const Json& args, const char* key)
+{
+    if (!args.contains(key) || args[key].is_null())
+        return {};
+    return requireString(args, key);
+}
+
 std::uint64_t parseHandle(const std::string& text)
 {
     if (auto h = base64ToHandle(text))
@@ -193,6 +201,8 @@ Json Service::dispatch(const std::string& op, const Json& args, const Emit& emit
         return rename(args);
     if (op == "move")
         return move(args);
+    if (op == "copy")
+        return copy(args);
     if (op == "trash")
         return trash(args);
     if (op == "upload")
@@ -249,7 +259,7 @@ Json Service::login(const Json& args)
 {
     const std::string user = requireString(args, "email");
     const std::string password = requireString(args, "password");
-    const std::string authCode = args.value("authCode", std::string());
+    const std::string authCode = optionalString(args, "authCode");
 
     std::lock_guard<std::mutex> lock(mAuthMutex);
     dropSession();
@@ -354,9 +364,21 @@ Json Service::move(const Json& args)
     requireReady();
     const std::uint64_t handle = requireHandle(args, "handle");
     const FolderRef parent = optionalFolder(args, "parent");
-    const std::string name = args.value("name", std::string());
+    const std::string name = optionalString(args, "name");
     unwrap(await<void>([&](auto done) {
         mClient.moveNode(handle, parent.handle, parent.isRoot, name, std::move(done));
+    }));
+    return Json::object();
+}
+
+Json Service::copy(const Json& args)
+{
+    requireReady();
+    const std::uint64_t handle = requireHandle(args, "handle");
+    const FolderRef parent = optionalFolder(args, "parent");
+    const std::string name = optionalString(args, "name");
+    unwrap(await<void>([&](auto done) {
+        mClient.copyNode(handle, parent.handle, parent.isRoot, name, std::move(done));
     }));
     return Json::object();
 }

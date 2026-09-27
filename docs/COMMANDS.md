@@ -38,12 +38,13 @@
 | `Resolve-Path` / `Split-Path` / `Join-Path` | ✅ | ✅ | PowerShell 側の汎用処理。ワイルドカードも効く |
 | `Rename-Item` | ✅ | ✅ | 兄弟に同じ名前があれば拒否する（一括の名前変更で 2 つが 1 つの名前に重なる事故を防ぐ）。MEGAcmd では大文字小文字も無視して比べる |
 | `Move-Item` | ✅ | ✅ | 移動先は既存のフォルダ。移動先に同名があれば拒否する（MEGA は上書きせず同名の兄弟を作るため） |
+| `Copy-Item`（`mega:` の中で） | ❌ | ✅ | 既存のフォルダを指せばその中へ、それ以外なら名前を変えてコピー。コピー先に同名があれば拒否する（MEGA はファイルなら版として積み、中身が同じなら黙って捨て、フォルダなら同名の兄弟を作るため）。フォルダは中身ごとしかコピーできないので `-Recurse` を必須にしている。MEGAcmd の `cp` は未実測なので未対応 |
 | `Remove-Item` | ✅ | ✅ | ゴミ箱への移動。元の場所を記録し、`Restore-MegaItem` で戻せる。完全削除はしない方針 |
 | `New-Item -ItemType Directory` | ✅ | ✅ | 同名のフォルダがあると拒否される（サーバーの仕様） |
 | `-WhatIf` / `-Confirm` | ✅ | ✅ | 変更系の操作と、`Send-` / `Receive-` / `Restore-MegaItem` で効く |
 
 **同名の兄弟**: `ls`・`cd`・`Get-Item`・`Test-Path` は最初に一致したものを見せる。変更系（`Rename-` / `Move-` /
-`Remove-` / `New-Item`）と `Send-` / `Receive-` / `Restore-MegaItem` は、パスのどこかに同名の兄弟があると
+`Copy-` / `Remove-` / `New-Item`）と `Send-` / `Receive-` / `Restore-MegaItem` は、パスのどこかに同名の兄弟があると
 「ambiguous」のエラーで拒否する（別のものを変更・転送する事故を防ぐため）。自分で同名を作る操作も拒否するので、
 同名ができるのは他のクライアントで作られた場合だけ。
 
@@ -59,7 +60,6 @@
 
 | 優先 | コマンド | 内容・論点 |
 |---|---|---|
-| 中 | `Copy-Item`（`mega:` の中で） | `CopyItem` を実装する。ファイルのコピーは版が積まれ、フォルダのコピーは同名の兄弟ができる（MEGA の仕様） |
 | 中 | `Get-Content` | `IContentCmdletProvider` を実装する。テキストの小さなファイルを読む用途。MEGAcmd には `cat` がある（未実測） |
 | 低 | `Set-Content` / `Add-Content` | MEGA のファイルは書き換えられず、アップロードすると新しい版になる。どう見せるかは未決 |
 | 低 | `Get-ItemProperty` / `Set-ItemProperty` | ラベルやお気に入りなど MEGA の属性を扱う（`IPropertyCmdletProvider`） |

@@ -64,6 +64,10 @@ internal sealed partial class MegaCmdBackend(MegaCmdAuth auth) : IMegaBackend
         return FindChild(dest, c => c.Handle == item.Handle) ?? throw Unconfirmed($"move '{item.Name}'");
     }
 
+    // MEGAcmd's cp has not been measured yet (docs/MEGACMD.md); no parser from memory.
+    public MegaItem Copy(string path, string destinationFolderPath, string newName) =>
+        throw new NotSupportedException("Copy-Item is not supported by the MEGAcmd backend yet.");
+
     public void MoveToRubbish(string path)
     {
         var chain = RequireChain(path);

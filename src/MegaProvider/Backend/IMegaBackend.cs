@@ -16,6 +16,13 @@ public interface IMegaBackend
     MegaItem Rename(string path, string newName);
     MegaItem Move(string path, string destinationFolderPath);
 
+    /// <summary>
+    /// Copies a file, or a folder with everything in it, into the folder as <paramref name="newName"/>.
+    /// If the folder already holds a file of that name, MEGA stacks the copy onto it as a new version
+    /// instead of adding an item, so callers make sure the name is free first.
+    /// </summary>
+    MegaItem Copy(string path, string destinationFolderPath, string newName);
+
     /// <summary>Moves to the Rubbish Bin, remembering the parent so <see cref="Restore"/> can put it back.</summary>
     void MoveToRubbish(string path);
 

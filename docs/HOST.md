@@ -113,6 +113,7 @@
 | `mkdir` | `{parent?, name}` | 同名のフォルダがあると -12 |
 | `rename` | `{handle, name}` | |
 | `move` | `{handle, parent?, name?}` | 同名があっても兄弟ができるだけ（上書きしない） |
+| `copy` | `{handle, parent?, name?}` | フォルダは中身ごと。同名のファイルがあると兄弟ではなく版として積まれ、中身が同じなら何も起きない（どちらも成功が返る）。新しい handle は返らない |
 | `trash` | `{handle}` | ゴミ箱へ移す |
 | `upload` | `{local, parent?}` | 進捗の行のあと `{handle}`。同名のファイルがあれば版が積まれる |
 | `download` | `{handle, local}` | 進捗の行のあと `{local}`（名前が埋まっていれば ` (1)` が付いた実際のパス） |

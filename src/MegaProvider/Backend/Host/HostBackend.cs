@@ -54,6 +54,17 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
         return Reread(dest, item.Handle);
     }
 
+    public MegaItem Copy(string path, string destinationFolderPath, string newName)
+    {
+        CheckName(newName);
+        var item = RequireChain(path)[^1];
+        var dest = RequireFolder(destinationFolderPath);
+        Call("copy", new { handle = item.Handle, parent = HandleOrNull(dest), name = newName == item.Name ? null : newName });
+        // The host does not report the new handle; the caller made sure the name was free.
+        return ListChildren(dest).FirstOrDefault(c => c.Name == newName && c.Handle != item.Handle)
+               ?? throw new InvalidOperationException($"Copied '{newName}', but it is not in the destination folder.");
+    }
+
     public void MoveToRubbish(string path) => Call("trash", new { handle = RequireChain(path)[^1].Handle });
 
     public IReadOnlyList<MegaItem> ListRubbish() => ToItems(Call("rubbish"));
