@@ -72,7 +72,12 @@ public abstract class MegaItemCommandBase : PSCmdlet
         }
         catch (Exception e) when (e is not PipelineStoppedException)
         {
-            var category = e is MegaItemNotFoundException ? ErrorCategory.ObjectNotFound : ErrorCategory.NotSpecified;
+            var category = e switch
+            {
+                MegaItemNotFoundException => ErrorCategory.ObjectNotFound,
+                MegaAmbiguousPathException => ErrorCategory.InvalidArgument,
+                _ => ErrorCategory.NotSpecified,
+            };
             WriteError(new ErrorRecord(e, e.GetType().Name, category, target));
         }
     }
@@ -101,6 +106,7 @@ public sealed class SendMegaItemCommand : MegaItemCommandBase
         var dest = ResolveMega(Destination, literal: false);
         if (dest.Count != 1)
             throw new ArgumentException($"-Destination '{Destination}' must resolve to exactly one folder.");
+        MegaCloudProvider.EnsureUnambiguous(dest[0]);
         _megaDestination = dest[0];
     });
 
@@ -158,6 +164,7 @@ public sealed class ReceiveMegaItemCommand : MegaItemCommandBase
             {
                 foreach (var megaPath in ResolveMega(input, literal))
                 {
+                    MegaCloudProvider.EnsureUnambiguous(megaPath);
                     if (!ShouldProcess("mega:\\" + megaPath.Replace('/', '\\'), $"Download to '{_localDestination}'")) continue;
                     WriteLocalItem(Backend.Download(megaPath, _localDestination, ProgressFor("Downloading from MEGA", megaPath)));
                 }
@@ -212,6 +219,7 @@ public sealed class RestoreMegaItemCommand : MegaItemCommandBase
             var resolved = ResolveMega(Destination, literal: false);
             if (resolved.Count != 1)
                 throw new ArgumentException($"-Destination '{Destination}' must resolve to exactly one folder.");
+            MegaCloudProvider.EnsureUnambiguous(resolved[0]);
             dest = resolved[0];
         }
         var target = Name is null ? $"H:{Handle}" : $"'{Name}' (H:{Handle})";

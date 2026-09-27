@@ -48,9 +48,7 @@ public sealed class FakeBackend : IMegaBackend
         var node = _root;
         foreach (var part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
-            // MEGA names are case-sensitive; the fallback is only so `cd Docs` feels like Windows.
-            var next = node.Children.FirstOrDefault(c => c.Name == part)
-                    ?? node.Children.FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase));
+            var next = NameMatch.Candidates(node.Children, part, c => c.Name).FirstOrDefault();
             if (next is null) return null;
             node = next;
         }

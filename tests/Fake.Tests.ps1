@@ -105,6 +105,37 @@ Describe 'Changes' {
     }
 }
 
+Describe 'Same-named siblings' {
+    It 'lists and reads them, but refuses to change them by path' {
+        (Get-Item mega:\dup.txt).Name | Should -Be 'dup.txt'
+        { Rename-Item mega:\dup.txt -NewName one.txt -ErrorAction Stop } | Should -Throw '*ambiguous*'
+        { Remove-Item mega:\dup.txt -ErrorAction Stop } | Should -Throw '*ambiguous*'
+        { Move-Item mega:\dup.txt mega:\empty -ErrorAction Stop } | Should -Throw '*ambiguous*'
+        (Get-ChildItem mega:\ -File).Name | Should -Be @('dup.txt', 'dup.txt')
+    }
+
+    It 'refuses each item piped from ls, and still handles the others' {
+        Get-ChildItem mega:\ -File | Rename-Item -NewName { "x_$($_.Name)" } -ErrorVariable errs -ErrorAction SilentlyContinue
+        $errs.Count | Should -Be 2
+        (Get-ChildItem mega:\ -File).Name | Should -Be @('dup.txt', 'dup.txt')
+    }
+
+    It 'refuses a path whose ancestor is ambiguous' {
+        # The fake lets a second same-named folder be created; the real server would refuse it.
+        New-Item mega:\twins -ItemType Directory | Out-Null
+        New-Item mega:\twins -ItemType Directory | Out-Null
+        { New-Item mega:\twins\inner -ItemType Directory -ErrorAction Stop } | Should -Throw '*ambiguous*'
+    }
+
+    It 'refuses to move onto a name that already exists in the destination' {
+        New-Item mega:\movetest -ItemType Directory | Out-Null
+        New-Item mega:\movetest\docs -ItemType Directory | Out-Null
+        { Move-Item mega:\docs mega:\movetest -ErrorAction Stop } | Should -Throw '*already exists*'
+        Test-Path mega:\docs\readme.txt | Should -BeTrue
+        Remove-Item mega:\movetest -Recurse
+    }
+}
+
 Describe 'What the fake backend cannot do' {
     It 'rejects transfers' {
         { Send-MegaItem $PSCommandPath mega:\docs -ErrorAction Stop } | Should -Throw '*does not simulate*'

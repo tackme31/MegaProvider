@@ -5,6 +5,7 @@ public sealed record MegaItem(string Handle, string Name, bool IsFolder, long Si
 /// <summary>
 /// Paths are '/'-separated and relative to the cloud root ("" is the root).
 /// MEGA allows same-named siblings, so a path can match several nodes; path-based calls take the first.
+/// The provider refuses to change or transfer through such a path (MegaCloudProvider.EnsureUnambiguous).
 /// Mutating calls return the resulting item so the provider never has to look it up by (ambiguous) name.
 /// </summary>
 public interface IMegaBackend
@@ -54,7 +55,25 @@ public interface IMegaAuth
     void Disconnect();
 }
 
+/// <summary>How one path segment picks among a folder's children. Every backend resolves paths with this.</summary>
+public static class NameMatch
+{
+    /// <summary>
+    /// The children the name could mean: the exact matches, or, if there are none, the case-insensitive
+    /// ones (MEGA names are case-sensitive; the fallback is only so `cd docs` feels like Windows).
+    /// More than one means the name is ambiguous.
+    /// </summary>
+    public static List<T> Candidates<T>(IEnumerable<T> children, string name, Func<T, string> nameOf)
+    {
+        var all = children as IReadOnlyCollection<T> ?? children.ToList();
+        var exact = all.Where(c => nameOf(c) == name).ToList();
+        return exact.Count > 0 ? exact : all.Where(c => string.Equals(nameOf(c), name, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+}
+
 public sealed class MegaItemNotFoundException(string message) : Exception(message);
+
+public sealed class MegaAmbiguousPathException(string message) : Exception(message);
 
 public sealed class MegaNotConnectedException()
     : Exception("Not connected to MEGA. Run Connect-MegaAccount first.");

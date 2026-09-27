@@ -124,10 +124,11 @@ Describe 'Folders, moving and the Rubbish Bin' {
         (Get-ChildItem "$R\moved").Name | Should -Be 'trip_0001.jpg'
     }
 
-    It 'keeps both items when moving onto an existing name (MEGA never overwrites)' {
+    It 'refuses to move onto an existing name (MEGA would add a same-named sibling)' {
         Send-MegaItem "$local\up\IMG_0001.jpg" "$R\moved" | Rename-Item -NewName trip_0002.jpg
-        Move-Item "$R\trip_0002.jpg" "$R\moved"
-        @(Get-ChildItem "$R\moved" -Filter trip_0002.jpg) | Should -HaveCount 2
+        { Move-Item "$R\trip_0002.jpg" "$R\moved" -ErrorAction Stop } | Should -Throw '*already exists*'
+        Test-Path "$R\trip_0002.jpg" | Should -BeTrue
+        @(Get-ChildItem "$R\moved" -Filter trip_0002.jpg) | Should -HaveCount 1
     }
 
     It 'removes to the Rubbish Bin and restores to the original folder' {

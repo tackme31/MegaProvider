@@ -164,9 +164,7 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
             var node = chain[^1];
             if (!node.IsFolder) return null;
             var children = ListChildren(node);
-            // Same policy as FakeBackend: exact match first, then case-insensitive so `cd docs` works.
-            var next = children.FirstOrDefault(c => c.Name == part)
-                    ?? children.FirstOrDefault(c => string.Equals(c.Name, part, StringComparison.OrdinalIgnoreCase));
+            var next = NameMatch.Candidates(children, part, c => c.Name).FirstOrDefault();
             if (next is null) return null;
             chain.Add(next);
         }

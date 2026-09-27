@@ -20,6 +20,43 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
 
     private static string ToProviderPath(string megaPath) => megaPath.Replace('/', '\\');
 
+    /// <summary>
+    /// Throws if any segment of the path matches several same-named siblings. Backends silently take the
+    /// first match, which is fine for looking but not for changing or transferring: a bulk rename could
+    /// hit the wrong one. Missing segments pass; the operation itself reports them.
+    /// </summary>
+    internal static void EnsureUnambiguous(string megaPath)
+    {
+        var folder = "";
+        foreach (var part in megaPath.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var matches = NameMatch.Candidates(Backend.List(folder), part, c => c.Name);
+            if (matches.Count > 1)
+                throw new MegaAmbiguousPathException(
+                    $"'{megaPath}' is ambiguous: {matches.Count} items named '{part}' are in the same folder. " +
+                    "Rename one of them in another MEGA client first.");
+            if (matches.Count == 0 || !matches[0].IsFolder) return;
+            folder = folder.Length == 0 ? matches[0].Name : folder + "/" + matches[0].Name;
+        }
+    }
+
+    private bool IsUnambiguous(params string[] paths)
+    {
+        foreach (var path in paths)
+        {
+            try
+            {
+                EnsureUnambiguous(ToMegaPath(path));
+            }
+            catch (MegaAmbiguousPathException e)
+            {
+                WriteError(new ErrorRecord(e, "AmbiguousPath", ErrorCategory.InvalidArgument, path));
+                return false;
+            }
+        }
+        return true;
+    }
+
     protected override bool IsValidPath(string path) => true;
 
     // The drive root is "", which the base implementation rejects; `cd mega:\; ls -Recurse` asks for it.
@@ -91,7 +128,7 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
 
     protected override void RenameItem(string path, string newName)
     {
-        if (!ShouldProcess(path, $"Rename to '{newName}'")) return;
+        if (!IsUnambiguous(path) || !ShouldProcess(path, $"Rename to '{newName}'")) return;
         // MEGA would accept a duplicate name, but in a bulk rename that is almost always two
         // inputs mapping to one output, so it is refused as Windows would.
         var parent = ToMegaPath(GetParentPath(path, ""));
@@ -115,15 +152,24 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
                 "NewItemTypeNotSupported", ErrorCategory.NotImplemented, path));
             return;
         }
-        if (!ShouldProcess(path, "Create folder")) return;
+        if (!IsUnambiguous(GetParentPath(path, "")) || !ShouldProcess(path, "Create folder")) return;
         var created = Backend.CreateFolder(ToMegaPath(GetParentPath(path, "")), GetChildName(path));
         WriteItemObject(created, path, true);
     }
 
-    // The destination must be an existing folder. MEGA keeps same-named siblings side by side, so
-    // moving onto a name that already exists there adds a second item rather than replacing the first.
+    // The destination must be an existing folder. MEGA would add a same-named sibling rather than
+    // replace anything, so a name that already exists there is refused, as for Rename-Item.
     protected override void MoveItem(string path, string destination)
     {
+        if (!IsUnambiguous(path, destination)) return;
+        var self = Backend.Get(ToMegaPath(path));
+        if (self is not null && Backend.Get(ToMegaPath(destination)) is { IsFolder: true }
+            && Backend.List(ToMegaPath(destination)).Any(c => c.Name == self.Name && c.Handle != self.Handle))
+        {
+            WriteError(new ErrorRecord(new InvalidOperationException($"An item named '{self.Name}' already exists in '{destination}'."),
+                "MoveTargetExists", ErrorCategory.ResourceExists, path));
+            return;
+        }
         if (!ShouldProcess(path, $"Move to '{destination}'")) return;
         var moved = Backend.Move(ToMegaPath(path), ToMegaPath(destination));
         WriteItemObject(moved, MakePath(ToProviderPath(ToMegaPath(destination)), moved.Name), moved.IsFolder);
@@ -133,7 +179,7 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
     // Restore-MegaItem puts it back.
     protected override void RemoveItem(string path, bool recurse)
     {
-        if (!ShouldProcess(path, "Move to Rubbish Bin")) return;
+        if (!IsUnambiguous(path) || !ShouldProcess(path, "Move to Rubbish Bin")) return;
         Backend.MoveToRubbish(ToMegaPath(path));
     }
 

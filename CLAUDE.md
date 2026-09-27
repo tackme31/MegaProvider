@@ -129,8 +129,8 @@ dotnet build                     # MegaProvider.sln
 `../MegaExplorer/docs/investigations/SPEC_NAME_CONFLICT_COPY_MOVE.md`（参照のみ。ここへ書き写さない）。
 
 - **同じフォルダに同名の子を置ける。** 名前は識別子ではなく属性にすぎない。パスで指定すると
-  複数に一致しうるので、いまは最初の一致を取っている。handle で直接指定する手段（たとえば
-  `mega:\#h1a2b3c` のような書き方）は、どこかで必要になる。
+  複数に一致しうる。読み取りは最初の一致を取り、変更・転送は拒否する（`MegaCloudProvider.EnsureUnambiguous`）。
+  同名は稀なので、handle で直接指定する手段（`mega:\#h1a2b3c` など）は必要になるまで作らない。
 - **名前は大文字と小文字を区別する。** `FakeBackend` は完全一致を優先し、見つからなければ
   大文字小文字を無視して探す（`cd Docs` を Windows らしく通すため）。本物のバックエンドでも同じ方針にするかは未決。
 - 同名のまま発行したときの結果は API が決めている。**ファイルのコピーは版が積まれ、それ以外
