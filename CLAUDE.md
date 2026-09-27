@@ -94,7 +94,7 @@ dotnet build                     # MegaProvider.sln
 - Pester 5.5 以上（入っているのは 6.2、`Install-Module Pester -Scope CurrentUser`）。Windows 同梱の 3.4 では動かない。
 - バックエンドはプロセスごとに固定なので、`test.ps1` はスイートごとに新しい pwsh を立てる。
 - `-Live` は最初に `Get-MegaAccount` を `MEGAEXPLORER_TEST_ACCOUNT` と照合し、違えば何もせずに止まる。
-  毎回 `mega:\MegaProviderTestun-<日時>-<乱数>` を作り、最後にゴミ箱へ送る（ゴミ箱には溜まっていく）。
+  毎回 `mega:\MegaProviderTest\run-<日時>-<乱数>` を作り、最後にゴミ箱へ送る（ゴミ箱には溜まっていく）。
   最後の `Account` は一度 `Disconnect` してからパスワードで `Connect` し直す。
 - 変更を入れたら、少なくとも `./scripts/test.ps1` は通す。バックエンドや native に触れたら `-Live` も。
 - 既知の制限は `-Skip` で残し、理由をコメントに書く（例: 同名の兄弟がいるフォルダでのタブ補完）。
