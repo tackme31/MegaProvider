@@ -18,6 +18,10 @@
 | `Connect-MegaAccount [-Credential] <PSCredential>` | ログインし、セッションを `%LOCALAPPDATA%\MegaProvider\session.dat` に保存する。前のアカウントがあれば差し替える |
 | `Get-MegaAccount` | 今つながっているアカウント（`Email`）を返す |
 | `Disconnect-MegaAccount` | ログアウトし（サーバー側でもセッションを無効にする）、保存したセッションを消す |
+| `Send-MegaItem [-Path] <ローカル> [-Destination] <mega:\フォルダ>` | アップロード（ファイル・フォルダ）。`ls C:\x \| Send-MegaItem -Destination mega:\y` で使える。同名のファイルがあれば版が積まれる |
+| `Receive-MegaItem [-Path] <mega:\...> [[-Destination] <ローカルのフォルダ>]` | ダウンロード。`ls mega:\x -File \| Receive-MegaItem -Destination C:\y` で使える。既定の保存先は今のファイルシステムの場所 |
+| `Get-MegaRubbishItem [[-Name] <ワイルドカード>]` | ゴミ箱の一番上の階層を、ハンドル付きで一覧する |
+| `Restore-MegaItem [-Handle] <ハンドル> [-Destination <mega:\フォルダ>]` | ゴミ箱から、`Remove-Item` する前の場所（または `-Destination`）へ戻す。`Get-MegaRubbishItem x \| Restore-MegaItem` で使える |
 
 ### 標準のコマンド
 
@@ -26,16 +30,18 @@ MEGAcmd 列は実アカウント、偽列は `FakeBackend`（`$env:MEGAPROVIDER_
 | コマンド | MEGAcmd | 偽 | 備考 |
 |---|---|---|---|
 | `Set-Location`（`cd`） | ✅ | ✅ | 大文字と小文字の違いは吸収する |
-| `Get-ChildItem`（`ls`） | ✅ | ✅ | `-Recurse`、`-Filter`、`-Name` に対応 |
+| `Get-ChildItem`（`ls`） | ✅ | ✅ | `-Recurse`、`-Filter`、`-Name`、`-File`、`-Directory` に対応。表示はファイルシステムと同じ並び（`.format.ps1xml`） |
 | `Get-Item` | ✅ | ✅ | |
 | `Test-Path` | ✅ | ✅ | |
 | タブ補完 | ✅ | ✅ | |
 | `Resolve-Path` / `Split-Path` / `Join-Path` | ✅ | ✅ | PowerShell 側の汎用処理。ワイルドカードも効く |
-| `Rename-Item` | ❌ 未実装 | ✅ | |
-| `Move-Item` | ❌ 未実装 | ✅ | |
-| `Remove-Item` | ❌ 未実装 | ✅ | ゴミ箱への移動。完全削除はしない方針 |
-| `New-Item -ItemType Directory` | ❌ 未実装 | ✅ | |
-| `-WhatIf` / `-Confirm` | — | ✅ | 変更系の操作と一緒に効く |
+| `Rename-Item` | ✅ | ✅ | 兄弟に同じ名前（大文字小文字を無視）があれば拒否する。MEGAcmd では 1 件 0.8 秒ほど |
+| `Move-Item` | ✅ | ✅ | 移動先は既存のフォルダ。同名があっても上書きせず、同名の兄弟ができる（MEGA の仕様） |
+| `Remove-Item` | ✅ | ✅ | ゴミ箱への移動。元の場所を記録し、`Restore-MegaItem` で戻せる。完全削除はしない方針 |
+| `New-Item -ItemType Directory` | ✅ | ✅ | MEGAcmd では同名のフォルダがあると拒否される |
+| `-WhatIf` / `-Confirm` | ✅ | ✅ | 変更系の操作と、`Send-` / `Receive-` / `Restore-MegaItem` で効く |
+
+`Send-` / `Receive-MegaItem` は偽バックエンドでは使えない（転送は模擬していない）。
 
 ## 2. 実装しておくとよいもの
 
@@ -45,26 +51,22 @@ MEGAcmd 列は実アカウント、偽列は `FakeBackend`（`$env:MEGAPROVIDER_
 
 | 優先 | コマンド | 内容・論点 |
 |---|---|---|
-| 高 | `Rename-Item` / `Move-Item` / `Remove-Item` / `New-Item`（MEGAcmd） | 偽ではもう動くので、MEGAcmd に繋ぐだけ。同名の兄弟ができるときの挙動を先に実測する。一括処理のためにリトライ（EAGAIN）と同時実行数の制限も要る |
-| 高 | `Get-ChildItem -File` / `-Directory` | `GetChildItemsDynamicParameters` を実装する。`ls -File \| Rename-Item` のような使い方で必須 |
-| 高 | 表示の書式（`.format.ps1xml`） | コマンドではないが、`ls` の見た目を決める。今は `MegaItem` のプロパティがそのまま表に並んでいる。`Mode` / `LastWriteTime` / `Length` / `Name` のように、ファイルシステムと同じ並びにしたい |
+| 高 | レート制限（EAGAIN）へのリトライ | コマンドではないが、大量の一括処理に要る。MEGAcmd でどう見えるかをまだ引き当てていないので、実測してから入れる |
 | 中 | `Copy-Item`（`mega:` の中で） | `CopyItem` を実装する。ファイルのコピーは版が積まれ、フォルダのコピーは同名の兄弟ができる（MEGA の仕様） |
 | 中 | `Get-Content` | `IContentCmdletProvider` を実装する。テキストの小さなファイルを読む用途。MEGAcmd には `cat` がある（未実測） |
 | 低 | `Set-Content` / `Add-Content` | MEGA のファイルは書き換えられず、アップロードすると新しい版になる。どう見せるかは未決 |
 | 低 | `Get-ItemProperty` / `Set-ItemProperty` | ラベルやお気に入りなど MEGA の属性を扱う（`IPropertyCmdletProvider`） |
 
 **PowerShell の `Copy-Item` は、プロバイダをまたいでコピーできない**（`C:\` ⇔ `mega:\`）。
-実際に試すと「ソース パスと宛先パスが同じプロバイダーに解決されませんでした」になる。そのため、ローカルとの転送は下のモジュールのコマンドにする。
+実際に試すと「ソース パスと宛先パスが同じプロバイダーに解決されませんでした」になる。そのため、
+ローカルとの転送はモジュールのコマンド（`Send-` / `Receive-MegaItem`）にしている。
 
 ### モジュールのコマンド（名前は案）
 
 | 優先 | コマンド | 内容・論点 |
 |---|---|---|
-| 高 | `Send-MegaItem -Path <ローカル> -Destination <mega:\...>` | アップロード。パイプラインで `ls C:\photos \| Send-MegaItem -Destination mega:\photos` のように使う |
-| 高 | `Receive-MegaItem -Path <mega:\...> -Destination <ローカル>` | ダウンロード。`Save-MegaItem`（`Save-Module` と同じ言い回し）も候補 |
-| 高 | `Get-MegaRubbishItem` / `Restore-MegaItem` | `Remove-Item` がゴミ箱への移動なので、元に戻す手段があると安全装置として完結する |
 | 中 | `Publish-MegaItem` / `Unpublish-MegaItem` | 公開リンクを作る・消す。作ったリンクを返す |
-| 中 | `Get-MegaItemVersion` | ファイルの版の一覧。コピーで版が積まれるので、それを確認する手段 |
+| 中 | `Get-MegaItemVersion` | ファイルの版の一覧（MEGAcmd の `ls --versions`）。アップロードやコピーで版が積まれるので、それを確認する手段 |
 | 中 | `Get-MegaAccount -Detailed` | 容量の使用状況などを足す（MEGAcmd の `whoami -l` / `df`）。新しいコマンドにはせず、スイッチで |
 | 低 | `Import-MegaItem <公開リンク>` | 他の人の公開リンクを自分のアカウントへ取り込む（MEGAcmd の `import`） |
 | 低 | `Get-MegaTransfer` | 大きな転送をバックグラウンドで行うようにしたときの進捗確認 |
@@ -80,3 +82,5 @@ MEGAcmd 列は実アカウント、偽列は `FakeBackend`（`$env:MEGAPROVIDER_
 
 - **ハンドルでの指定**（`mega:\#h1a2b3c` のような書き方）: 同名の兄弟を確実に指すため。
 - **2FA**: `Connect-MegaAccount` に `-AuthCode` を足す。
+- **名前に `*` や `?` を含むフォルダの中での名前変更・フォルダ作成**: MEGAcmd がパスをワイルドカードとして
+  読むため、いまは拒否している（`docs/MEGACMD.md`）。

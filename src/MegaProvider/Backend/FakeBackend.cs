@@ -1,6 +1,6 @@
 namespace MegaProvider.Backend;
 
-/// <summary>In-memory tree for trying the provider without a MEGA account.</summary>
+/// <summary>In-memory tree for trying the provider without a MEGA account. Transfers are not simulated.</summary>
 public sealed class FakeBackend : IMegaBackend
 {
     private sealed class Node
@@ -11,6 +11,7 @@ public sealed class FakeBackend : IMegaBackend
         public long Size;
         public DateTime Modified = DateTime.Now;
         public Node? Parent;
+        public Node? RestoreParent;
         public List<Node> Children = new();
 
         public MegaItem ToItem() => new(Handle, Name, IsFolder, Size, Modified);
@@ -65,23 +66,57 @@ public sealed class FakeBackend : IMegaBackend
         return n.IsFolder ? n : throw new InvalidOperationException($"'{path}' is not a folder.");
     }
 
+    private static string PathOf(Node n) =>
+        n.Parent is null ? "" : (PathOf(n.Parent) is var p && p.Length > 0 ? p + "/" : "") + n.Name;
+
     public MegaItem? Get(string path) => Resolve(path)?.ToItem();
 
     public IReadOnlyList<MegaItem> List(string folderPath) =>
         RequireFolder(folderPath).Children.Select(c => c.ToItem()).ToList();
 
-    public void CreateFolder(string parentPath, string name) => Add(RequireFolder(parentPath), name, true);
+    public MegaItem CreateFolder(string parentPath, string name) => Add(RequireFolder(parentPath), name, true).ToItem();
 
-    public void Rename(string path, string newName)
+    public MegaItem Rename(string path, string newName)
     {
         var n = Require(path);
         n.Name = newName;
         n.Modified = DateTime.Now;
+        return n.ToItem();
     }
 
-    public void Move(string path, string destinationFolderPath) => Reparent(Require(path), RequireFolder(destinationFolderPath));
+    public MegaItem Move(string path, string destinationFolderPath)
+    {
+        var n = Require(path);
+        Reparent(n, RequireFolder(destinationFolderPath));
+        return n.ToItem();
+    }
 
-    public void MoveToRubbish(string path) => Reparent(Require(path), _rubbish);
+    public void MoveToRubbish(string path)
+    {
+        var n = Require(path);
+        n.RestoreParent = n.Parent;
+        Reparent(n, _rubbish);
+    }
+
+    public IReadOnlyList<MegaItem> ListRubbish() => _rubbish.Children.Select(c => c.ToItem()).ToList();
+
+    public string Restore(string handle, string? destinationFolderPath)
+    {
+        var n = _rubbish.Children.FirstOrDefault(c => c.Handle == handle)
+                ?? throw new MegaItemNotFoundException($"No item with handle '{handle}' in the Rubbish Bin.");
+        var target = destinationFolderPath is not null
+            ? RequireFolder(destinationFolderPath)
+            : n.RestoreParent ?? throw new InvalidOperationException($"'{n.Name}' has no record of where it was removed from. Use -Destination.");
+        Reparent(n, target);
+        n.RestoreParent = null;
+        return PathOf(n);
+    }
+
+    public MegaItem Upload(string localPath, string destinationFolderPath) =>
+        throw new NotSupportedException("The fake backend does not simulate uploads.");
+
+    public string Download(string path, string localFolder) =>
+        throw new NotSupportedException("The fake backend does not simulate downloads.");
 
     private static void Reparent(Node n, Node newParent)
     {

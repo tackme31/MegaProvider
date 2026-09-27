@@ -15,13 +15,11 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 
 ## 状態: PoC
 
-- 動くもの:
-  - MEGAcmd バックエンド（実アカウント）: `Connect-` / `Get-` / `Disconnect-MegaAccount`、
-    `cd` / `ls` / `-Filter` / `-Recurse` / `Get-Item` / `Test-Path` / タブ補完。**読み取りのみ**。
-  - 偽バックエンド（`FakeBackend`、`$env:MEGAPROVIDER_BACKEND = 'fake'`）: 上に加えて `Rename-Item` /
-    `New-Item -ItemType Directory` / `Move-Item` / `Remove-Item` / `-WhatIf`。
-- **次の一手: MEGAcmd バックエンドの変更系**（`mkdir` / `mv` / `rm`）。同名の兄弟ができる挙動を
-  MEGAcmd で実測してから書く。
+- 動くもの: 一覧は `docs/COMMANDS.md`。MEGAcmd バックエンド（実アカウント）で、読み取り・変更系・
+  転送（`Send-` / `Receive-MegaItem`）・ゴミ箱からの復元まで動く。偽バックエンド
+  （`$env:MEGAPROVIDER_BACKEND = 'fake'`）は転送以外。
+- 実アカウントでの確認は `mega:\MegaProviderTest` の下で行う（テスト用アカウントの砂場）。
+- **次の一手**: `docs/COMMANDS.md` の「2. 実装しておくとよいもの」。
 - バックエンドは 2 段階で考えている。
   1. **MEGAcmd を裏で呼ぶ**（`MEGAclient.exe ls -l ...` 等の出力を解析）。C++ を書かずに実アカウントで
      操作感を確かめられる。インストール済みで、実測した出力形式や挙動は `docs/MEGACMD.md`。
@@ -36,9 +34,7 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
     **ファイルは MegaExplorer と共有しない**（完全に別プロジェクト）。
   - 同時に扱えるアカウントは 1 つだけ。`Connect` し直したら差し替える。
   - 2FA は後で対応する（MEGAcmd は `--auth-code` で受けられる）。
-- 未対応: `-File` / `-Directory`（`GetChildItemsDynamicParameters` が要る）、`Copy-Item`、
-  アップロードとダウンロード（`Get-Content` や、ローカルとの `Copy-Item` をどう表すかは未決）、
-  書式ファイル（`.format.ps1xml`）、テスト（Pester を想定）。
+- 未対応: テスト（Pester を想定）。確認はいまはスクラッチパッドのスクリプトで手動。
 
 ## 構成
 
@@ -46,6 +42,8 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 src/MegaProvider/
   MegaCloudProvider.cs     プロバイダ本体。PowerShell のパス ⇔ MEGA のパスの変換はここだけ
   AccountCommands.cs       Connect- / Get- / Disconnect-MegaAccount
+  ItemCommands.cs          Send- / Receive-MegaItem、Get-MegaRubbishItem、Restore-MegaItem
+  MegaProvider.format.ps1xml  ls の表示（ビルド出力へコピーされる）
   Backend/IMegaBackend.cs  バックエンドと認証の境界。パスは '/' 区切りでルート相対（"" がルート）
   Backend/BackendHost.cs   実装を選ぶ唯一の場所（差し替えるときはここだけ変える）
   Backend/FakeBackend.cs   メモリ上の偽物。同名の兄弟（dup.txt ×2）をわざと含む
