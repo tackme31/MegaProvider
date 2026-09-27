@@ -30,7 +30,8 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
     自由に使える。形式は MegaExplorer にならう（セッショントークンを DPAPI で暗号化）が、
     **ファイルは MegaExplorer と共有しない**（完全に別プロジェクト）。
   - 同時に扱えるアカウントは 1 つだけ。`Connect` し直したら差し替える。
-  - 2FA は後で対応する（ホストの `login` は `authCode` を受けられる。`Connect-MegaAccount` 側が未対応）。
+  - 2FA（認証アプリのコード）は `Connect-MegaAccount -AuthCode`、または省略時にその場で尋ねる。テスト用アカウントは
+    2FA が無効なので、コードを求められる経路は本物の 2FA アカウントでしか確かめられない（MegaExplorer と共有しているので有効にしない）。
 
 ## 構成
 

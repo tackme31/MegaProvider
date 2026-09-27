@@ -58,8 +58,10 @@ public sealed record LoginProgress(LoginStage Stage, long Done = 0, long Total =
 public interface IMegaAuth
 {
     /// <summary>Logs in, persists the session, and returns the account's e-mail.</summary>
+    /// <param name="authCode">The authenticator app's code, for accounts with two-factor authentication.</param>
     /// <param name="progress">Called on the calling thread when supported. Loading a large account takes minutes.</param>
-    string Connect(string email, string password, Action<LoginProgress>? progress = null);
+    /// <exception cref="MegaAuthCodeRequiredException">The account has 2FA and no code was given.</exception>
+    string Connect(string email, string password, string? authCode = null, Action<LoginProgress>? progress = null);
 
     /// <summary>
     /// Makes the backend hold the persisted session, logging in with it if needed (the slow part after a
@@ -93,6 +95,9 @@ public static class NameMatch
 public sealed class MegaItemNotFoundException(string message) : Exception(message);
 
 public sealed class MegaAmbiguousPathException(string message) : Exception(message);
+
+public sealed class MegaAuthCodeRequiredException()
+    : Exception("This account uses two-factor authentication. Give the code from the authenticator app with -AuthCode.");
 
 public sealed class MegaNotConnectedException()
     : Exception("Not connected to MEGA. Run Connect-MegaAccount first.");

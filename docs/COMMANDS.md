@@ -15,7 +15,7 @@
 
 | コマンド | 内容 |
 |---|---|
-| `Connect-MegaAccount [-Credential] <PSCredential>` | ログインし、セッションを `%LOCALAPPDATA%\MegaProvider\session.dat` に保存する。前のアカウントがあれば差し替える |
+| `Connect-MegaAccount [-Credential] <PSCredential> [-AuthCode <6桁>]` | ログインし、セッションを `%LOCALAPPDATA%\MegaProvider\session.dat` に保存する。前のアカウントがあれば差し替える。2FA のアカウントでは、`-AuthCode` が無ければその場でコードを尋ねる（非対話ではエラー）。2FA の無いアカウントではコードは無視される（実測） |
 | `Get-MegaAccount` | 今つながっているアカウント（`Email`）を返す |
 | `Disconnect-MegaAccount` | ログアウトし（サーバー側でもセッションを無効にする）、保存したセッションを消す |
 | `Send-MegaItem [-Path] <ローカル> [-Destination] <mega:\フォルダ>` | アップロード（ファイル・フォルダ）。`ls C:\x \| Send-MegaItem -Destination mega:\y` で使える。同名のファイルがあれば版が積まれる |
@@ -91,5 +91,4 @@
   含むパスへの変更を拒否しているので、必要になるまで保留。
   同名の兄弟がいるフォルダでタブ補完が効かない問題（PowerShell の補完が子の名前を辞書のキーにしていて、
   重複で例外になる）も、兄弟ごとに別のパスを与えられれば解ける。`tests/Fake.Tests.ps1` に Skip で残してある。
-- **2FA**: `Connect-MegaAccount` に `-AuthCode` を足す。
 - **EAGAIN の実地確認**: 既定のバックエンドは 4 回まで送り直すが、実際に EAGAIN を引き当てて確かめてはいない。

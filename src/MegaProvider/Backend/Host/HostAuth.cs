@@ -16,12 +16,27 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
     private readonly object _gate = new();
     private DateTime _verifiedAt = DateTime.MinValue;
 
-    public string Connect(string email, string password, Action<LoginProgress>? progress = null)
+    public string Connect(string email, string password, string? authCode = null, Action<LoginProgress>? progress = null)
     {
         lock (_gate)
         {
             _verifiedAt = DateTime.MinValue;
-            var result = client.Call("login", new { email, password }, Relay(progress))!;
+            JsonNode result;
+            try
+            {
+                result = client.Call("login", new { email, password, authCode }, Relay(progress))!;
+            }
+            catch (HostException e) when (e.Code == HostClient.CodeMfaRequired)
+            {
+                throw new MegaAuthCodeRequiredException();
+            }
+            // The API has no distinct code for a wrong 2FA code; these are the ones MegaExplorer saw for it.
+            catch (HostException e) when (e.Code is HostClient.CodeNoEnt or HostClient.CodeFailed or HostClient.CodeExpired)
+            {
+                throw new UnauthorizedAccessException(authCode is null
+                    ? "Wrong e-mail address or password."
+                    : "Wrong e-mail address, password or authentication code.", e);
+            }
             SessionStore.Save(result["session"]!.GetValue<string>());
             _verifiedAt = DateTime.UtcNow;
             return result["email"]!.GetValue<string>();

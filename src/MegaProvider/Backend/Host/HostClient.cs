@@ -19,6 +19,8 @@ internal sealed class HostClient
     public const int CodeBadSession = -15;
     public const int CodeNoEnt = -9;
     public const int CodeAgain = -3;
+    public const int CodeFailed = -5;
+    public const int CodeExpired = -8;
     public const int CodeExist = -12;
     public const int CodeIncomplete = -13;
     public const int CodeMfaRequired = -26;

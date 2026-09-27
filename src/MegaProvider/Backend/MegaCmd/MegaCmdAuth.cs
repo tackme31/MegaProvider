@@ -20,14 +20,18 @@ internal sealed partial class MegaCmdAuth : IMegaAuth
     public int Generation { get; private set; }
 
     // MEGAcmd prints nothing while it logs in, so there is no progress to relay.
-    public string Connect(string email, string password, Action<LoginProgress>? progress = null)
+    // How MEGAcmd reports a missing or wrong 2FA code is unmeasured (docs/MEGACMD.md), so its error passes through.
+    public string Connect(string email, string password, string? authCode = null, Action<LoginProgress>? progress = null)
     {
         lock (_gate)
         {
             Invalidate();
             if (CurrentToken() is not null)
                 LeaveCurrentSession();
-            MegaCmdClient.Run("login", email, password);
+            if (authCode is null)
+                MegaCmdClient.Run("login", email, password);
+            else
+                MegaCmdClient.Run("login", email, password, $"--auth-code={authCode}");
             SessionStore.Save(CurrentToken() ?? throw new InvalidOperationException("MEGAcmd reported no session after login."));
             _verifiedAt = DateTime.UtcNow;
             return WhoAmI();
