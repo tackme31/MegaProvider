@@ -64,9 +64,24 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
     protected override string GetChildName(string path) =>
         ToMegaPath(path).Length == 0 ? "" : base.GetChildName(path);
 
-    protected override bool ItemExists(string path) => Backend.Get(ToMegaPath(path)) is not null;
+    protected override bool ItemExists(string path) => Lookup(path) is not null;
 
-    protected override bool IsItemContainer(string path) => Backend.Get(ToMegaPath(path))?.IsFolder == true;
+    protected override bool IsItemContainer(string path) => Lookup(path)?.IsFolder == true;
+
+    // PowerShell reads any exception from these checks as "path does not exist" (a terminating error
+    // too), so the reason is written out first; its own "does not exist" still follows.
+    private MegaItem? Lookup(string path)
+    {
+        try
+        {
+            return Backend.Get(ToMegaPath(path));
+        }
+        catch (MegaNotConnectedException e)
+        {
+            WriteError(new ErrorRecord(e, "NotConnected", ErrorCategory.AuthenticationError, path));
+            return null;
+        }
+    }
 
     protected override bool HasChildItems(string path)
     {

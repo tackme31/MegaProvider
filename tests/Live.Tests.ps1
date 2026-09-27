@@ -226,15 +226,28 @@ Describe 'The SDK host' -Skip:(-not $isHost) {
 Describe 'Account' {
     # Last on purpose: Disconnect invalidates the session everything above used.
     It 'disconnects, then connects again with the test credentials' {
-        Disconnect-MegaAccount
-        { Get-MegaAccount -ErrorAction Stop } | Should -Throw '*Connect-MegaAccount*'
-        # The drive root needs no account, so dev.ps1's `Set-Location mega:` works before logging in.
-        Push-Location mega:\
-        try { { Get-ChildItem -ErrorAction Stop } | Should -Throw '*Connect-MegaAccount*' }
-        finally { Pop-Location }
         $password = ConvertTo-SecureString $env:MEGAEXPLORER_TEST_PASSWORD -AsPlainText -Force
         $cred = [pscredential]::new($env:MEGAEXPLORER_TEST_ACCOUNT, $password)
-        (Connect-MegaAccount -Credential $cred).Email | Should -Be $env:MEGAEXPLORER_TEST_ACCOUNT
+        Disconnect-MegaAccount
+        try {
+            { Get-MegaAccount -ErrorAction Stop } | Should -Throw '*Connect-MegaAccount*'
+            # The drive root needs no account, so dev.ps1's `Set-Location mega:` works before logging in.
+            Push-Location mega:\
+            try { { Get-ChildItem -ErrorAction Stop } | Should -Throw '*Connect-MegaAccount*' }
+            finally { Pop-Location }
+            # Below the root PowerShell insists on "path does not exist" (or fails binding dynamic
+            # parameters, depending on -ErrorAction); either way the reason must come with it.
+            $messages = try {
+                Get-ChildItem $R -ErrorVariable errs -ErrorAction SilentlyContinue
+                $errs.Exception.Message
+            } catch { $_.Exception.Message }
+            $messages -join "`n" | Should -BeLike '*Run Connect-MegaAccount first*'
+        }
+        finally {
+            # Even when an assertion above fails, so AfterAll can clean up and later runs find the account.
+            $email = (Connect-MegaAccount -Credential $cred).Email
+        }
+        $email | Should -Be $env:MEGAEXPLORER_TEST_ACCOUNT
         (Get-MegaAccount).Email | Should -Be $env:MEGAEXPLORER_TEST_ACCOUNT
     }
 }
