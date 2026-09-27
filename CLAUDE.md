@@ -145,7 +145,7 @@ dotnet build                     # MegaProvider.sln
 
 - MEGAcmd 2.6.0: `%LOCALAPPDATA%\MEGAcmd`。サーバーはテスト用アカウントでログインしたまま常駐していることがある。
 - Pester 6.2.0（CurrentUser）。Visual Studio 2022 Community（CMake 3.31 付属、v142 ツールセットあり）。
-- vcpkg のバイナリキャッシュ `%LOCALAPPDATA%cpkgrchives` を MegaExplorer と共有している。
+- vcpkg のバイナリキャッシュ `%LOCALAPPDATA%\vcpkg\archives` を MegaExplorer と共有している。
 - テスト用アカウントの `mega:\MegaProviderTest` には、手で試したときの `a`、`b`、`run` と、
   テストの砂場（`run-*`、終了時にゴミ箱へ）が残っている。消してよい。
 
