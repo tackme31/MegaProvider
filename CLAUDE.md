@@ -19,7 +19,7 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
   ゴミ箱からの復元まで動く。
 - 実アカウントでの確認は `mega:\MegaProviderTest` の下で行う（テスト用アカウントの砂場）。
 - いまは Windows 専用。Linux には対応する予定、macOS には対応しない。必要な作業は `docs/COMMANDS.md` の「3.」。
-- **次の一手**: プロダクトとして出すための残り（`docs/COMMANDS.md` の「4.」にあるパイプ名の版、README を仕上げる）。そのあと「2. 実装しておくとよいもの」。
+- **次の一手**: プロダクトとして出すための残り（`docs/COMMANDS.md` の「4.」にあるパイプ名の版）。そのあと「2. 実装しておくとよいもの」。
   既知の問題は同じファイルの「4.」。
 - バックエンドは 3 つあり、`$env:MEGAPROVIDER_BACKEND` で選ぶ（`Backend/BackendHost.cs`）。
   - 既定: **SDK の常駐プロセス**（`native/`、`megaprovider-host.exe`）。MegaExplorer の `IMegaClient` を

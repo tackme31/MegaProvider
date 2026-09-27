@@ -1,13 +1,95 @@
 # MegaProvider
 
-A PowerShell provider that exposes MEGA cloud storage as a `mega:` drive, so the standard cmdlets
-(`Get-ChildItem`, `Rename-Item`, `Move-Item`, `Remove-Item`, ...) and pipelines work on it.
+A PowerShell provider that exposes [MEGA](https://mega.io/) cloud storage as a `mega:` drive.
+Browse it with `cd` and `ls`, and change it with the standard cmdlets — `Rename-Item`, `Move-Item`,
+`Copy-Item`, `Remove-Item`, `New-Item` — including in pipelines, so bulk jobs are one line:
 
 ```powershell
 Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Name -replace '^IMG_', 'trip_' }
 ```
 
-> This README is a stub. Installation and usage will follow.
+MegaProvider talks to MEGA through the official [MEGA C++ SDK](https://github.com/meganz/sdk), which
+runs in a small background process (`megaprovider-host.exe`) so that the file list is loaded once, not
+on every command.
+
+## Requirements
+
+- Windows x64
+- PowerShell 7.4 or later (not Windows PowerShell 5.1)
+
+## Installation
+
+1. Download `MegaProvider-<version>-win-x64.zip` from the
+   [Releases](https://github.com/tackme31/MegaProvider/releases) page.
+2. Unpack it into your module folder and unblock the files:
+
+   ```powershell
+   $version = '<version>'   # e.g. 0.1.0
+   $dest = "$HOME\Documents\PowerShell\Modules\MegaProvider\$version"
+   Expand-Archive "MegaProvider-$version-win-x64.zip" $dest
+   Get-ChildItem $dest | Unblock-File
+   ```
+
+3. Import the module and log in:
+
+   ```powershell
+   Import-Module MegaProvider
+   Connect-MegaAccount (Get-Credential)
+   cd mega:\
+   ```
+
+The login is remembered: later sessions only need `Import-Module MegaProvider`
+(add it to your `$PROFILE` to skip even that).
+
+To uninstall, run `Disconnect-MegaAccount`, stop the background process
+(`Get-Process megaprovider-host | Stop-Process`), and delete the module folder and
+`%LOCALAPPDATA%\MegaProvider`.
+
+## Commands
+
+### Account
+
+| Command | What it does |
+|---|---|
+| `Connect-MegaAccount [-Credential] <PSCredential> [-AuthCode <code>]` | Logs in and remembers the session. For accounts with two-factor authentication, give the authenticator code with `-AuthCode`, or you are asked for it. Connecting again replaces the account (one at a time). |
+| `Get-MegaAccount` | Shows the account you are connected to. |
+| `Disconnect-MegaAccount` | Logs out (the session is invalidated on MEGA's side too) and forgets it. |
+
+The session is stored in `%LOCALAPPDATA%\MegaProvider\session.dat`, encrypted for your Windows user
+(DPAPI). Your password is never stored.
+
+### Standard cmdlets on `mega:`
+
+| Cmdlet | Behaviour |
+|---|---|
+| `Set-Location` (`cd`), `Get-Item`, `Test-Path`, `Resolve-Path`, tab completion | As on a local drive. If no name matches exactly, a case-insensitive match is used (MEGA names are case-sensitive). |
+| `Get-ChildItem` (`ls`) | Supports `-Recurse`, `-Filter`, `-Name`, `-File`, `-Directory`. |
+| `Rename-Item` | Refuses a name that another item in the same folder already has. |
+| `Move-Item` | The destination must be an existing folder. Refuses if it already holds an item of the same name. |
+| `Copy-Item` | Within `mega:` only. Refuses if the destination already holds the name. A folder needs `-Recurse` and is copied with everything in it. |
+| `Remove-Item` | **Moves the item to the Rubbish Bin.** MegaProvider never deletes permanently; use `Restore-MegaItem` to undo. |
+| `New-Item -ItemType Directory` | Creates a folder. |
+
+`-WhatIf` and `-Confirm` work on every command that changes something.
+
+### Transfers and the Rubbish Bin
+
+| Command | What it does |
+|---|---|
+| `Send-MegaItem [-Path] <local> [-Destination] <mega:\folder>` | Uploads files or folders. Uploading a file whose name already exists adds a new version of it. |
+| `Receive-MegaItem [-Path] <mega:\...> [[-Destination] <local folder>]` | Downloads files or folders (to the current directory by default). |
+| `Get-MegaRubbishItem [[-Name] <wildcard>]` | Lists what is in the Rubbish Bin. |
+| `Restore-MegaItem [-Handle] <handle> [-Destination <mega:\folder>]` | Puts an item back where it was removed from, or into `-Destination`. |
+
+Transfers show a progress bar and can be cancelled with Ctrl+C. `Copy-Item` cannot copy between `mega:`
+and a local drive (PowerShell does not allow that across providers), which is what `Send-` and
+`Receive-MegaItem` are for. They take pipeline input:
+
+```powershell
+Get-ChildItem C:\photos\*.jpg | Send-MegaItem -Destination mega:\photos
+Get-ChildItem mega:\docs -File | Receive-MegaItem -Destination C:\backup
+Get-MegaRubbishItem report* | Restore-MegaItem
+```
 
 ## Cautions
 
@@ -27,8 +109,42 @@ account may send requests, and there is no undo for renames and moves.
 - While MEGA is refusing a whole batch of requests, the MEGA SDK keeps retrying on its own, so a command
   can seem to hang for a while without any message.
 
+### Items with the same name
+
+MEGA allows several items with the same name in one folder, so a path can match more than one item.
+Listing and reading show the first match. Changing or transferring through such a path is refused with
+an "ambiguous" error, so that a bulk job cannot hit the wrong item; rename one of them in another MEGA
+client first. Tab completion does not work in such a folder (a PowerShell limitation).
+
 ### Other
 
-- `Remove-Item` moves items to the Rubbish Bin; it never deletes permanently. `Restore-MegaItem` puts them back.
-- Windows only for now.
+- **Updating:** the background process stays up for up to an hour after the last command. Stop it
+  (`Get-Process megaprovider-host | Stop-Process`) before installing a new version.
+- Windows only for now. Linux support is planned; macOS is not.
 - This is an unofficial tool, not affiliated with or endorsed by MEGA.
+
+## Building from source
+
+Needs Visual Studio 2022 with the C++ workload (including the v142 toolset) and the .NET 8 SDK or later.
+
+```powershell
+git clone --recurse-submodules https://github.com/tackme31/MegaProvider.git
+cd MegaProvider
+native/third_party/vcpkg/bootstrap-vcpkg.bat
+./scripts/dev.ps1          # builds everything and opens a pwsh with the module loaded
+./scripts/test.ps1         # runs the tests that need no account
+```
+
+The first native build compiles the MEGA SDK and its dependencies through vcpkg and takes a while.
+
+## License
+
+MegaProvider is licensed under the [MIT License](LICENSE).
+
+The release zip also contains `THIRD-PARTY-NOTICES.txt` for the components linked into
+`megaprovider-host.exe`, including the MEGA C++ SDK (BSD 2-Clause), nlohmann/json (MIT) and the
+libraries they depend on.
+
+## Author
+
+Takumi Yamada ([@tackme31](https://github.com/tackme31))
