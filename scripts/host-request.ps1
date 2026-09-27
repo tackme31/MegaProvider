@@ -2,7 +2,7 @@
 # protocol (docs/HOST.md) without the module. Session tokens in replies are masked.
 #
 #   ./scripts/host-request.ps1 status
-#   ./scripts/host-request.ps1 list '{"handle":"fSIDyBZC"}'
+#   ./scripts/host-request.ps1 list '{"handle":"xxxxxxxx"}'
 #   ./scripts/host-request.ps1 list -Repeat 100          # prints the average round trip instead
 #
 # The host must already be running (any mega: command starts it). It is not started from here.

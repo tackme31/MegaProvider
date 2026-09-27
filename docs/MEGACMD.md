@@ -33,15 +33,15 @@ MEGAcmd 2.6.0（公式インストーラ `https://mega.nz/MEGAcmdSetup64.exe`、
 
 ```
 FLAGS VERS      SIZE             DATE          HANDLE NAME
-d---    -            - 2026-08-24T16:58:30 H:fSIDyBZC Notes
+d---    -            - 2026-08-24T16:58:30 H:xxxxxxxx docs
 ```
 
   オプションなしの `ls -l /` ではファイルはこう出る（日付は `11Sep2026 17:06:53` 形式）:
 
 ```
 FLAGS VERS      SIZE            DATE       NAME
-----    1         7270 11Sep2026 17:06:53 archive_pass_test.zip
--ep-    1      5965972 07Jun2020 19:18:08 In_app_viewer_data.mp3
+----    1         7270 11Sep2026 17:06:53 archive.zip
+-ep-    1      5965972 07Jun2020 19:18:08 music.mp3
 ```
 
   - FLAGS の 1 文字目が種別（`d` フォルダ、`-` ファイル、`r` ルート、`i` 受信箱、`b` ゴミ箱）、
@@ -51,7 +51,7 @@ FLAGS VERS      SIZE            DATE       NAME
     `--time-format=ISO6081_WITH_TIME` でも同じ。
   - 名前は行末まで（空白を含みうる）なので、列は左から固定個数で切り、残りを名前とする。
   - ハンドルは `H:XXXXXXXX` で、パスの代わりに指定できる。
-- ハンドルで指定したフォルダを `ls` すると、見出しの前に `/Documents/Notes: ` のようなフルパスの行が付く。
+- ハンドルで指定したフォルダを `ls` すると、見出しの前に `/docs/notes: ` のようなフルパスの行が付く。
 - 出力は UTF-8、行末は CRLF（日本語の名前で確認）。
 - 1 回の呼び出しは 150ms 前後。フォルダを 1 つずつ `ls` して 52 フォルダ・842 件を辿ると 5.6 秒。
 - パスにはワイルドカード（`*`、`?`）が効く。名前に `*` や `?` を含むノードをパスで指すときは要注意。

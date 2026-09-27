@@ -88,8 +88,8 @@
 1 行に 1 つの JSON（UTF-8、`\n` 区切り）。1 つの接続では要求を 1 つずつ処理する。
 
 ```
-→ {"id":1,"op":"list","args":{"handle":"fSIDyBZC"}}
-← {"id":1,"ok":true,"result":[{"handle":"...","name":"Notes","folder":true,"size":0,"mtime":1756022310}]}
+→ {"id":1,"op":"list","args":{"handle":"xxxxxxxx"}}
+← {"id":1,"ok":true,"result":[{"handle":"...","name":"docs","folder":true,"size":0,"mtime":1756022310}]}
 ← {"id":2,"ok":false,"error":{"code":-9,"message":"Not found"}}
 ← {"id":3,"progress":{"done":1048576,"total":5242880}}      （転送中。最後に ok の行が来る）
 ← {"id":4,"progress":{"stage":"download","done":1048576,"total":5242880}}   （login / resume の段階）

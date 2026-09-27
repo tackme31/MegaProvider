@@ -32,8 +32,7 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
     自由に使える。形式は MegaExplorer にならう（セッショントークンを DPAPI で暗号化）が、
     **ファイルは MegaExplorer と共有しない**（完全に別プロジェクト）。
   - 同時に扱えるアカウントは 1 つだけ。`Connect` し直したら差し替える。
-  - 2FA（認証アプリのコード）は `Connect-MegaAccount -AuthCode`、または省略時にその場で尋ねる。テスト用アカウントは
-    2FA が無効なので、コードを求められる経路は本物の 2FA アカウントでしか確かめられない（MegaExplorer と共有しているので有効にしない）。
+  - 2FA（認証アプリのコード）は `Connect-MegaAccount -AuthCode`、または省略時にその場で尋ねる。
     2026-09-28 にユーザーが 2FA のアカウントで確認済み。
 
 ## 構成
@@ -78,8 +77,7 @@ dotnet build                     # MegaProvider.sln
 ```
 
 - 対象は `net8.0` で、`PowerShellStandard.Library` の参照アセンブリを使ってビルドする。
-  実行時は pwsh 7.6（.NET 10）の本物の `System.Management.Automation` が使われる。
-  入っている SDK は 9 までなので、`net10.0` は指定できない。
+  実行時は pwsh（7.4 以上）の本物の `System.Management.Automation` が使われる。
 - **読み込んだ DLL はアンロードできず、ロックもされる。** 修正を確かめるたびに新しい pwsh プロセスを
   立てること。`dev.ps1` のシェルを開いたままだと、次のビルドがコピーに失敗する。
 - 動作確認は `pwsh -NoProfile -File <script>.ps1` で非対話に流す。一時スクリプトはスクラッチパッドに置く。
@@ -90,7 +88,6 @@ dotnet build                     # MegaProvider.sln
 - git clone したあとは `git submodule update --init` と `native/third_party/vcpkg/bootstrap-vcpkg.bat` が要る。
 - `native/` で clangd が出す「ヘッダが見つからない」類の診断は無視してよい（VS ジェネレータは
   compile_commands.json を作らない）。判断は MSVC のビルド結果で。
-- Bash の `python3` は Microsoft Store のスタブで何もしない。`python` を使う。
 
 ## テスト
 
@@ -103,7 +100,7 @@ dotnet build                     # MegaProvider.sln
 複数のバックエンドを渡すときは `pwsh -Command "& ./scripts/test.ps1 ..."` で呼ぶ（`pwsh -File` だと
 `host,megacmd` が 1 つの文字列のまま渡って ValidateSet に弾かれる）。
 
-- Pester 5.5 以上（入っているのは 6.2、`Install-Module Pester -Scope CurrentUser`）。Windows 同梱の 3.4 では動かない。
+- Pester 5.5 以上（`Install-Module Pester -Scope CurrentUser`）。Windows 同梱の 3.4 では動かない。
 - バックエンドはプロセスごとに固定なので、`test.ps1` はスイートごとに新しい pwsh を立てる。
 - `-Live` は最初に `Get-MegaAccount` を `MEGAEXPLORER_TEST_ACCOUNT` と照合し、違えば何もせずに止まる。
   毎回 `mega:\MegaProviderTest\run-<日時>-<乱数>` を作り、最後にゴミ箱へ送る（ゴミ箱には溜まっていく）。
@@ -155,20 +152,11 @@ dotnet build                     # MegaProvider.sln
 - Git Bash は引数の裸の `/` を `C:/Program Files/Git/` に書き換える。MEGA のルートを `/` で渡すコマンドを
   Git Bash から叩くときは注意（megatool はルートを `.` にして避けた）。
 
-## このマシンの環境（2026-09-27 時点）
-
-- MEGAcmd 2.6.0: `%LOCALAPPDATA%\MEGAcmd`。サーバーはテスト用アカウントでログインしたまま常駐していることがある。
-- Pester 6.2.0（CurrentUser）。Visual Studio 2022 Community（CMake 3.31 付属、v142 ツールセットあり）。
-- vcpkg のバイナリキャッシュ `%LOCALAPPDATA%\vcpkg\archives` を MegaExplorer と共有している。
-- テスト用アカウントの `mega:\MegaProviderTest` には、手で試したときの `a`、`b`、`run` と、
-  テストの砂場（`run-*`、終了時にゴミ箱へ）が残っている。消してよい。
-
 ## テスト用アカウント
 
 - 実アカウントに対する操作は、**必ずテスト用アカウントで行う**。本番アカウントに対して破壊的な確認をしない。
-- アカウント名は `MEGAEXPLORER_TEST_ACCOUNT`（gitignore 済みの `.claude/settings.local.json` の `env`）。
-  パスワードは `MEGAEXPLORER_TEST_PASSWORD`（Windows のユーザー環境変数。ファイルには絶対に書かない）。
-  変数名は MegaExplorer と共有している。
+- アカウント名は環境変数 `MEGAEXPLORER_TEST_ACCOUNT`、パスワードは `MEGAEXPLORER_TEST_PASSWORD`。
+  パスワードはリポジトリ内のファイルには絶対に書かない。
 - テスト用アカウントへのログインは Claude が上の環境変数を使って行ってよい。パスワードは必ず
   変数参照（`"$MEGAEXPLORER_TEST_PASSWORD"`）で渡し、値を表示・ログ出力・ファイル化しない。
   `session` が出すトークンも秘密として扱い、表示しない。
@@ -183,5 +171,7 @@ MIT。MEGA SDK は BSD-2-Clause、nlohmann/json は MIT。`meganz/MEGAsync` の�
 ## 進め方
 
 - ユーザーとのやり取りは日本語。コミットメッセージは英語で書く。
+- このリポジトリは公開している。このマシンに固有のこと（入っているツールの版、テスト用アカウントの事情など）は
+  gitignore 済みの `CLAUDE.local.md` に書き、ここや `docs/` には書かない。
 - コミットは区切りのよいところで自由にしてよい。ブランチは切らず main に直接コミットする（push は頼まれたときだけ）。
 - コメントは、コードから読み取れないことだけを 1〜2 行で書く（外部仕様の罠、もっともらしい「修正」への予防線、別ファイルに原因がある制約）。

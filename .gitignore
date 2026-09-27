@@ -491,3 +491,6 @@ native/build/
 
 # The /release skill, not a build output ([Rr]elease/ above)
 !.claude/skills/release/
+
+# Machine-specific notes for Claude Code
+CLAUDE.local.md
