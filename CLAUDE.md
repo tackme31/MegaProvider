@@ -51,6 +51,7 @@ native/                    megaprovider-host（C++、CMake + vcpkg）。src/core
   third_party/sdk, vcpkg   submodule（MegaExplorer と同じコミット）
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
 scripts/test.ps1           ビルドして Pester を流す（スイートごとに新しい pwsh）
+scripts/host-request.ps1   動いているホストへ要求を 1 つ送って応答を見る（プロトコルのデバッグ用）
 tests/Fake.Tests.ps1       偽バックエンドのテスト（アカウント不要）
 tests/Live.Tests.ps1       テスト用アカウントでの端から端までのテスト
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
@@ -82,6 +83,9 @@ dotnet build                     # MegaProvider.sln
   手で `cmake --build` するときも先に止めること。
 - native のビルドは Visual Studio 付属の CMake で。Git Bash から MSBuild に `/m` を渡すとパスに化けるので `-m` と書く。
 - git clone したあとは `git submodule update --init` と `native/third_party/vcpkg/bootstrap-vcpkg.bat` が要る。
+- `native/` で clangd が出す「ヘッダが見つからない」類の診断は無視してよい（VS ジェネレータは
+  compile_commands.json を作らない）。判断は MSVC のビルド結果で。
+- Bash の `python3` は Microsoft Store のスタブで何もしない。`python` を使う。
 
 ## テスト
 
@@ -90,6 +94,9 @@ dotnet build                     # MegaProvider.sln
 ./scripts/test.ps1 -Live                          # + テスト用アカウントで SDK のホスト（1 分ほど）
 ./scripts/test.ps1 -Live -Backend host,megacmd    # MEGAcmd でも同じテストを流す
 ```
+
+複数のバックエンドを渡すときは `pwsh -Command "& ./scripts/test.ps1 ..."` で呼ぶ（`pwsh -File` だと
+`host,megacmd` が 1 つの文字列のまま渡って ValidateSet に弾かれる）。
 
 - Pester 5.5 以上（入っているのは 6.2、`Install-Module Pester -Scope CurrentUser`）。Windows 同梱の 3.4 では動かない。
 - バックエンドはプロセスごとに固定なので、`test.ps1` はスイートごとに新しい pwsh を立てる。
@@ -133,6 +140,14 @@ dotnet build                     # MegaProvider.sln
 - 大量の変更を短時間に投げると EAGAIN（レート制限）が返る。一括処理にはリトライと同時実行数の制限が要る。
 - Git Bash は引数の裸の `/` を `C:/Program Files/Git/` に書き換える。MEGA のルートを `/` で渡すコマンドを
   Git Bash から叩くときは注意（megatool はルートを `.` にして避けた）。
+
+## このマシンの環境（2026-09-27 時点）
+
+- MEGAcmd 2.6.0: `%LOCALAPPDATA%\MEGAcmd`。サーバーはテスト用アカウントでログインしたまま常駐していることがある。
+- Pester 6.2.0（CurrentUser）。Visual Studio 2022 Community（CMake 3.31 付属、v142 ツールセットあり）。
+- vcpkg のバイナリキャッシュ `%LOCALAPPDATA%cpkgrchives` を MegaExplorer と共有している。
+- テスト用アカウントの `mega:\MegaProviderTest` には、手で試したときの `a`、`b`、`run` と、
+  テストの砂場（`run-*`、終了時にゴミ箱へ）が残っている。消してよい。
 
 ## テスト用アカウント
 

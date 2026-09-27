@@ -156,6 +156,23 @@ Describe 'The SDK host' -Skip:(-not $isHost) {
         Get-Process megaprovider-host | Should -Not -BeNullOrEmpty
     }
 
+    # Regression: the host kept claiming the dead session and every call failed until it restarted.
+    It 'recovers when its session is revoked elsewhere' -Skip:(-not (Test-Path "$env:LOCALAPPDATA\MEGAcmd\MEGAclient.exe")) {
+        (Get-ChildItem $R).Name | Should -Contain 'moved'   # the host holds the current session
+        # Through the MEGAcmd backend: logout (kills the session on the server), then a fresh login.
+        pwsh -NoProfile -Command {
+            param($psd1)
+            $env:MEGAPROVIDER_BACKEND = 'megacmd'
+            Import-Module $psd1
+            Disconnect-MegaAccount
+            $password = ConvertTo-SecureString $env:MEGAEXPLORER_TEST_PASSWORD -AsPlainText -Force
+            Connect-MegaAccount -Credential ([pscredential]::new($env:MEGAEXPLORER_TEST_ACCOUNT, $password)) | Out-Null
+        } -args $env:MEGAPROVIDER_PSD1
+        Start-Sleep -Seconds 6   # past HostAuth's 5 s verification window
+        (Get-ChildItem $R).Name | Should -Contain 'moved'
+        (Get-MegaAccount).Email | Should -Be $env:MEGAEXPLORER_TEST_ACCOUNT
+    }
+
     It 'cancels an upload when the pipeline is stopped (Ctrl+C)' {
         $big = Join-Path $local 'big.bin'
         $f = [IO.File]::OpenWrite($big); $b = [byte[]]::new(1MB); $rnd = [Random]::new(1)

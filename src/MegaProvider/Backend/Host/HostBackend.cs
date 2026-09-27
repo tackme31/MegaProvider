@@ -103,9 +103,9 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
         {
             return client.Call(op, args, progress);
         }
-        catch (HostException e) when (e.Code == HostClient.CodeNotLoggedIn)
+        catch (HostException e) when (e.Code is HostClient.CodeNotLoggedIn or HostClient.CodeBadSession)
         {
-            // The host restarted since we last checked; give it the session again.
+            // The host restarted, or its session was killed elsewhere; give it the saved one again.
             auth.Invalidate();
             auth.EnsureSession();
             return client.Call(op, args, progress);

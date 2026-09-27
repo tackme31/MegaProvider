@@ -16,6 +16,7 @@ namespace MegaProvider.Backend.Host;
 internal sealed class HostClient
 {
     public const int CodeNotLoggedIn = 2;
+    public const int CodeBadSession = -15;
     public const int CodeNoEnt = -9;
     public const int CodeAgain = -3;
     public const int CodeExist = -12;

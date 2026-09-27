@@ -156,6 +156,10 @@ Json Service::handle(const Json& request, const Emit& emit)
     }
     catch (const HostError& e)
     {
+        // The session was killed elsewhere (logout on another client, password change): stop
+        // claiming to be logged in so the client resumes or asks for Connect-MegaAccount.
+        if (e.code == MegaErrorCode::kESid)
+            mReady = false;
         return {{"ok", false}, {"error", {{"code", e.code}, {"message", e.what()}}}};
     }
     catch (const std::exception& e)
@@ -229,13 +233,16 @@ void Service::dropSession()
 
 Json Service::status()
 {
-    Json result = {{"loggedIn", mReady.load()}};
     if (mReady)
     {
-        result["email"] = email();
-        result["session"] = unwrap(mClient.currentSessionToken());
+        // mReady outlives a session invalidated on the server; the SDK then has none to dump.
+        Result<std::string> session = mClient.currentSessionToken();
+        if (session.success)
+            return {{"loggedIn", true}, {"email", email()}, {"session", session.value()}};
+        LOG_INFO("host") << "session is gone (" << session.errorMessage << "); reporting logged out";
+        mReady = false;
     }
-    return result;
+    return {{"loggedIn", false}};
 }
 
 Json Service::login(const Json& args)

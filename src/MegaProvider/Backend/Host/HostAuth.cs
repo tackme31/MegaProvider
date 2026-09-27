@@ -57,7 +57,17 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
             var ours = SessionStore.Load() ?? throw new MegaNotConnectedException();
             var status = client.Call("status")!;
             if (!(status["loggedIn"]!.GetValue<bool>() && status["session"]?.GetValue<string>() == ours))
-                client.Call("resume", new { session = ours });
+            {
+                try
+                {
+                    client.Call("resume", new { session = ours });
+                }
+                catch (HostException e) when (e.Code == HostClient.CodeBadSession)
+                {
+                    // Revoked elsewhere (logout on another client, password change): only a new login helps.
+                    throw new MegaNotConnectedException();
+                }
+            }
             _verifiedAt = DateTime.UtcNow;
         }
     }
