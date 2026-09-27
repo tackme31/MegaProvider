@@ -17,6 +17,7 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
     // changes made elsewhere still show up at the next prompt; our own changes clear it.
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(2);
     private readonly Dictionary<string, (DateTime FetchedAt, IReadOnlyList<MegaItem> Items)> _listings = new();
+    private int _generation;
 
     public MegaItem? Get(string path) => ResolveChain(path)?[^1];
 
@@ -142,9 +143,18 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
 
     private IReadOnlyList<MegaItem> ListChildren(MegaItem folder)
     {
+        // Before the cache: a listing must not outlive Disconnect, nor show one account's files after Connect to another.
+        auth.EnsureSession();
         lock (_listings)
+        {
+            if (_generation != auth.Generation)
+            {
+                _listings.Clear();
+                _generation = auth.Generation;
+            }
             if (_listings.TryGetValue(folder.Handle, out var cached) && DateTime.UtcNow - cached.FetchedAt < CacheTtl)
                 return cached.Items;
+        }
         var items = ToItems(Call("list", new { handle = HandleOrNull(folder) }));
         lock (_listings) _listings[folder.Handle] = (DateTime.UtcNow, items);
         return items;

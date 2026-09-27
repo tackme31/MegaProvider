@@ -16,6 +16,9 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
     private readonly object _gate = new();
     private DateTime _verifiedAt = DateTime.MinValue;
 
+    /// <summary>Bumped whenever the logged-in session may have changed; caches keyed to it must be dropped.</summary>
+    public int Generation { get; private set; }
+
     public string Connect(string email, string password, string? authCode = null, Action<LoginProgress>? progress = null)
     {
         lock (_gate)
@@ -39,6 +42,7 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
             }
             SessionStore.Save(result["session"]!.GetValue<string>());
             _verifiedAt = DateTime.UtcNow;
+            Generation++;
             return result["email"]!.GetValue<string>();
         }
     }
@@ -61,6 +65,7 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
             client.Call("logout");
             SessionStore.Clear();
             _verifiedAt = DateTime.MinValue;
+            Generation++;
         }
     }
 
@@ -78,6 +83,7 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
             {
                 try
                 {
+                    Generation++;
                     client.Call("resume", new { session = ours }, Relay(progress));
                 }
                 catch (HostException e) when (e.Code == HostClient.CodeBadSession)

@@ -228,6 +228,10 @@ Describe 'Account' {
     It 'disconnects, then connects again with the test credentials' {
         Disconnect-MegaAccount
         { Get-MegaAccount -ErrorAction Stop } | Should -Throw '*Connect-MegaAccount*'
+        # The drive root needs no account, so dev.ps1's `Set-Location mega:` works before logging in.
+        Push-Location mega:\
+        try { { Get-ChildItem -ErrorAction Stop } | Should -Throw '*Connect-MegaAccount*' }
+        finally { Pop-Location }
         $password = ConvertTo-SecureString $env:MEGAEXPLORER_TEST_PASSWORD -AsPlainText -Force
         $cred = [pscredential]::new($env:MEGAEXPLORER_TEST_ACCOUNT, $password)
         (Connect-MegaAccount -Credential $cred).Email | Should -Be $env:MEGAEXPLORER_TEST_ACCOUNT

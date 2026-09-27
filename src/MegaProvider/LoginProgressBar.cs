@@ -22,6 +22,12 @@ internal sealed class LoginProgressBar(Action<ProgressRecord> write)
             {
                 auth.EnsureSession(bar.Report);
             }
+            // Only an early start for the progress bar. Not connected is for the actual call to report:
+            // `cd mega:` needs no account (the root is answered without one), and an exception here
+            // would surface as "path 'mega:\' does not exist".
+            catch (MegaNotConnectedException)
+            {
+            }
             finally
             {
                 bar.Complete();
