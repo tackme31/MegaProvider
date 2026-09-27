@@ -31,7 +31,6 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
     **ファイルは MegaExplorer と共有しない**（完全に別プロジェクト）。
   - 同時に扱えるアカウントは 1 つだけ。`Connect` し直したら差し替える。
   - 2FA は後で対応する（ホストの `login` は `authCode` を受けられる。`Connect-MegaAccount` 側が未対応）。
-- 未対応: テスト（Pester を想定）。確認はいまはスクラッチパッドのスクリプトで手動。
 
 ## 構成
 
@@ -51,6 +50,9 @@ src/MegaProvider/
 native/                    megaprovider-host（C++、CMake + vcpkg）。src/core・src/mega は MegaExplorer からのコピー
   third_party/sdk, vcpkg   submodule（MegaExplorer と同じコミット）
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
+scripts/test.ps1           ビルドして Pester を流す（スイートごとに新しい pwsh）
+tests/Fake.Tests.ps1       偽バックエンドのテスト（アカウント不要）
+tests/Live.Tests.ps1       テスト用アカウントでの端から端までのテスト
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
 docs/MEGACMD.md            MEGAcmd の実測メモ（認証、出力形式、終了コード）
 docs/COMMANDS.md           実装済み・候補のコマンド一覧
@@ -81,6 +83,22 @@ dotnet build                     # MegaProvider.sln
 - native のビルドは Visual Studio 付属の CMake で。Git Bash から MSBuild に `/m` を渡すとパスに化けるので `-m` と書く。
 - git clone したあとは `git submodule update --init` と `native/third_party/vcpkg/bootstrap-vcpkg.bat` が要る。
 
+## テスト
+
+```powershell
+./scripts/test.ps1                                # 偽バックエンドだけ（アカウント不要、数秒）
+./scripts/test.ps1 -Live                          # + テスト用アカウントで SDK のホスト（1 分ほど）
+./scripts/test.ps1 -Live -Backend host,megacmd    # MEGAcmd でも同じテストを流す
+```
+
+- Pester 5.5 以上（入っているのは 6.2、`Install-Module Pester -Scope CurrentUser`）。Windows 同梱の 3.4 では動かない。
+- バックエンドはプロセスごとに固定なので、`test.ps1` はスイートごとに新しい pwsh を立てる。
+- `-Live` は最初に `Get-MegaAccount` を `MEGAEXPLORER_TEST_ACCOUNT` と照合し、違えば何もせずに止まる。
+  毎回 `mega:\MegaProviderTestun-<日時>-<乱数>` を作り、最後にゴミ箱へ送る（ゴミ箱には溜まっていく）。
+  最後の `Account` は一度 `Disconnect` してからパスワードで `Connect` し直す。
+- 変更を入れたら、少なくとも `./scripts/test.ps1` は通す。バックエンドや native に触れたら `-Live` も。
+- 既知の制限は `-Skip` で残し、理由をコメントに書く（例: 同名の兄弟がいるフォルダでのタブ補完）。
+
 ## PowerShell プロバイダの落とし穴
 
 - プロバイダのインスタンスは**呼び出しごとに作られる**。状態（バックエンド、セッション）は static に持つ。
@@ -88,6 +106,8 @@ dotnet build                     # MegaProvider.sln
 - `-Filter` は `ProviderCapabilities.Filter` を宣言した時点でプロバイダの仕事になり、PowerShell は
   代わりにやってくれない（宣言しないと「フィルターをサポートしていない」エラーになる）。
 - 変更を伴う操作は必ず `ShouldProcess` を通す。そうしないと `-WhatIf` / `-Confirm` が効かない。
+- タブ補完（ファイルシステム以外のプロバイダ）は子の名前を辞書のキーにするので、同名の兄弟がいる
+  フォルダでは例外になって何も補完されない。PowerShell 側の都合で、プロバイダからは直せない。
 
 ## コマンドの命名
 
