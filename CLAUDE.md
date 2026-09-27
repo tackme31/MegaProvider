@@ -18,7 +18,8 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 - 動くもの: 一覧は `docs/COMMANDS.md`。読み取り・変更系・転送（`Send-` / `Receive-MegaItem`）・
   ゴミ箱からの復元まで動く。
 - 実アカウントでの確認は `mega:\MegaProviderTest` の下で行う（テスト用アカウントの砂場）。
-- **次の一手**: `docs/COMMANDS.md` の「2. 実装しておくとよいもの」。
+- **次の一手**: `docs/COMMANDS.md` の「3.」にある大量処理の実地確認。そのあと「2. 実装しておくとよいもの」。
+  既知の問題は同じファイルの「4.」。
 - バックエンドは 3 つあり、`$env:MEGAPROVIDER_BACKEND` で選ぶ（`Backend/BackendHost.cs`）。
   - 既定: **SDK の常駐プロセス**（`native/`、`megaprovider-host.exe`）。MegaExplorer の `IMegaClient` を
     コピーして Qt を外したものに、名前付きパイプで JSON を返す口を付けた。設計とプロトコルは `docs/HOST.md`。
@@ -32,6 +33,7 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
   - 同時に扱えるアカウントは 1 つだけ。`Connect` し直したら差し替える。
   - 2FA（認証アプリのコード）は `Connect-MegaAccount -AuthCode`、または省略時にその場で尋ねる。テスト用アカウントは
     2FA が無効なので、コードを求められる経路は本物の 2FA アカウントでしか確かめられない（MegaExplorer と共有しているので有効にしない）。
+    2026-09-28 にユーザーが 2FA のアカウントで確認済み。
 
 ## 構成
 
@@ -106,6 +108,9 @@ dotnet build                     # MegaProvider.sln
   最後の `Account` は一度 `Disconnect` してからパスワードで `Connect` し直す。
 - 変更を入れたら、少なくとも `./scripts/test.ps1` は通す。バックエンドや native に触れたら `-Live` も。
 - 既知の制限は `-Skip` で残し、理由をコメントに書く（例: 同名の兄弟がいるフォルダでのタブ補完）。
+- 一時スクリプトでアカウントを照合するときは `try { (Get-MegaAccount -ErrorAction Stop).Email } catch { $null }` と書く。
+  未接続のエラーは文単位の終了エラーなので、`if ((Get-MegaAccount).Email -ne ...) { throw }` は素通りして先へ進む。
+- 非対話で進捗を確かめるには `[powershell]::Create()` で流して `.Streams.Progress` を見る（`4>&1` では取れない）。
 
 ## PowerShell プロバイダの落とし穴
 
@@ -114,6 +119,10 @@ dotnet build                     # MegaProvider.sln
 - `-Filter` は `ProviderCapabilities.Filter` を宣言した時点でプロバイダの仕事になり、PowerShell は
   代わりにやってくれない（宣言しないと「フィルターをサポートしていない」エラーになる）。
 - 変更を伴う操作は必ず `ShouldProcess` を通す。そうしないと `-WhatIf` / `-Confirm` が効かない。
+- `ItemExists` / `IsItemContainer` から出た例外は、終了エラーでも「パスが存在しない」と表示される。理由を伝えたいときは
+  先に `WriteError` する（未接続のときがそう）。`-ErrorAction SilentlyContinue` のときは、動的パラメーターの取得中の
+  エラーとして終了エラー（`ParameterBindingException`）になる。
+- 中身のあるフォルダを `-Recurse` なしで `Remove-Item` すると PowerShell が確認を求め、非対話では落ちる（テストで注意）。
 - タブ補完（ファイルシステム以外のプロバイダ）は子の名前を辞書のキーにするので、同名の兄弟がいる
   フォルダでは例外になって何も補完されない。PowerShell 側の都合で、プロバイダからは直せない。
 
