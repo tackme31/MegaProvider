@@ -1,0 +1,4 @@
+# Normalise to LF at commit time, whatever the working tree holds. A script
+# that rewrites a file whole can flip its newlines as a side effect (Python's
+# Path.write_text does, on Windows), which lands as a whole-file diff.
+* text=auto eol=lf
