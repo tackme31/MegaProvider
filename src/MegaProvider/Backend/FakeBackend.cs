@@ -112,11 +112,13 @@ public sealed class FakeBackend : IMegaBackend
         return PathOf(n);
     }
 
-    public MegaItem Upload(string localPath, string destinationFolderPath) =>
+    public MegaItem Upload(string localPath, string destinationFolderPath, Action<long, long>? progress = null) =>
         throw new NotSupportedException("The fake backend does not simulate uploads.");
 
-    public string Download(string path, string localFolder) =>
+    public string Download(string path, string localFolder, Action<long, long>? progress = null) =>
         throw new NotSupportedException("The fake backend does not simulate downloads.");
+
+    public void CancelTransfer() { }
 
     private static void Reparent(Node n, Node newParent)
     {

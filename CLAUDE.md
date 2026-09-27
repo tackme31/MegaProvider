@@ -15,25 +15,22 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 
 ## 状態: PoC
 
-- 動くもの: 一覧は `docs/COMMANDS.md`。MEGAcmd バックエンド（実アカウント）で、読み取り・変更系・
-  転送（`Send-` / `Receive-MegaItem`）・ゴミ箱からの復元まで動く。偽バックエンド
-  （`$env:MEGAPROVIDER_BACKEND = 'fake'`）は転送以外。
+- 動くもの: 一覧は `docs/COMMANDS.md`。読み取り・変更系・転送（`Send-` / `Receive-MegaItem`）・
+  ゴミ箱からの復元まで動く。
 - 実アカウントでの確認は `mega:\MegaProviderTest` の下で行う（テスト用アカウントの砂場）。
 - **次の一手**: `docs/COMMANDS.md` の「2. 実装しておくとよいもの」。
-- バックエンドは 2 段階で考えている。
-  1. **MEGAcmd を裏で呼ぶ**（`MEGAclient.exe ls -l ...` 等の出力を解析）。C++ を書かずに実アカウントで
-     操作感を確かめられる。インストール済みで、実測した出力形式や挙動は `docs/MEGACMD.md`。
-     そこに無いことは実物で確認すること — 記憶で解析器を書かない。
-  2. 解析の遅さや脆さが気になったら、**自前のデーモン**に差し替える。候補は MegaExplorer の
-     `megatool`（`IMegaClient` の上の CLI）に、名前付きパイプで JSON を返す `serve` を足したもの。
-     大きなアカウントは `fetchNodes` に数分かかるので、コマンドのたびにログインする作りは成り立たず、
-     常駐するプロセスが必要になる。
+- バックエンドは 3 つあり、`$env:MEGAPROVIDER_BACKEND` で選ぶ（`Backend/BackendHost.cs`）。
+  - 既定: **SDK の常駐プロセス**（`native/`、`megaprovider-host.exe`）。MegaExplorer の `IMegaClient` を
+    コピーして Qt を外したものに、名前付きパイプで JSON を返す口を付けた。設計とプロトコルは `docs/HOST.md`。
+  - `megacmd`: MEGAcmd を裏で呼ぶ最初の実装。比較用・予備として残している。実測した挙動は
+    `docs/MEGACMD.md`。そこに無いことは実物で確認すること — 記憶で解析器を書かない。
+  - `fake`: メモリ上の木。アカウント不要。転送はできない。
 - **認証の方針（決定済み）**:
   - `Connect-MegaAccount` でログインし、セッションを自前のファイルに保存する。その後は `mega:` を
     自由に使える。形式は MegaExplorer にならう（セッショントークンを DPAPI で暗号化）が、
     **ファイルは MegaExplorer と共有しない**（完全に別プロジェクト）。
   - 同時に扱えるアカウントは 1 つだけ。`Connect` し直したら差し替える。
-  - 2FA は後で対応する（MEGAcmd は `--auth-code` で受けられる）。
+  - 2FA は後で対応する（ホストの `login` は `authCode` を受けられる。`Connect-MegaAccount` 側が未対応）。
 - 未対応: テスト（Pester を想定）。確認はいまはスクラッチパッドのスクリプトで手動。
 
 ## 構成
@@ -47,15 +44,20 @@ src/MegaProvider/
   Backend/IMegaBackend.cs  バックエンドと認証の境界。パスは '/' 区切りでルート相対（"" がルート）
   Backend/BackendHost.cs   実装を選ぶ唯一の場所（差し替えるときはここだけ変える）
   Backend/FakeBackend.cs   メモリ上の偽物。同名の兄弟（dup.txt ×2）をわざと含む
-  Backend/MegaCmd/         MEGAclient.exe を呼ぶ実装。セッションは %LOCALAPPDATA%\MegaProvider\session.dat
+  Backend/SessionStore.cs  セッションの保存（%LOCALAPPDATA%\MegaProvider\session.dat、DPAPI）
+  Backend/Host/            megaprovider-host.exe とパイプで話す実装（既定）
+  Backend/MegaCmd/         MEGAclient.exe を呼ぶ実装
   MegaProvider.psd1        モジュールマニフェスト（ビルド出力へコピーされる）
+native/                    megaprovider-host（C++、CMake + vcpkg）。src/core・src/mega は MegaExplorer からのコピー
+  third_party/sdk, vcpkg   submodule（MegaExplorer と同じコミット）
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
 docs/MEGACMD.md            MEGAcmd の実測メモ（認証、出力形式、終了コード）
 docs/COMMANDS.md           実装済み・候補のコマンド一覧
+docs/HOST.md               常駐プロセスの設計、ビルド、プロトコル
 ```
 
-MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接 MEGAcmd を呼ばない。
+MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接ホストや MEGAcmd を呼ばない。
 
 ## ビルドと実行
 
@@ -63,6 +65,7 @@ MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プ�
 dotnet build                     # MegaProvider.sln
 ./scripts/dev.ps1                # ビルド → 新しい pwsh で Import-Module → Set-Location mega:
 ./scripts/dev.ps1 -Fake          # 偽バックエンドで開く（アカウント不要）
+./scripts/dev.ps1 -Native        # native（ホスト）も Release でビルドし直す。初回は自動
 ./scripts/dev.ps1 -NoShell       # ビルドして .psd1 のパスを出すだけ（スクリプトからの確認用）
 ```
 
@@ -73,6 +76,10 @@ dotnet build                     # MegaProvider.sln
   立てること。`dev.ps1` のシェルを開いたままだと、次のビルドがコピーに失敗する。
 - 動作確認は `pwsh -NoProfile -File <script>.ps1` で非対話に流す。一時スクリプトはスクラッチパッドに置く。
 - 警告はエラーとして扱う（`TreatWarningsAsErrors`）。
+- **ホストの exe も起動中はロックされる。** `dev.ps1` は最初にホストへ `shutdown` を送って止める。
+  手で `cmake --build` するときも先に止めること。
+- native のビルドは Visual Studio 付属の CMake で。Git Bash から MSBuild に `/m` を渡すとパスに化けるので `-m` と書く。
+- git clone したあとは `git submodule update --init` と `native/third_party/vcpkg/bootstrap-vcpkg.bat` が要る。
 
 ## PowerShell プロバイダの落とし穴
 
@@ -116,12 +123,12 @@ dotnet build                     # MegaProvider.sln
 - テスト用アカウントへのログインは Claude が上の環境変数を使って行ってよい。パスワードは必ず
   変数参照（`"$MEGAEXPLORER_TEST_PASSWORD"`）で渡し、値を表示・ログ出力・ファイル化しない。
   `session` が出すトークンも秘密として扱い、表示しない。
-- MEGAcmd のセッションは MegaExplorer とは独立している。操作の前に `whoami` で
-  テスト用アカウントと照合する。
+- このモジュールのセッションは MegaExplorer とは独立している。操作の前に `Get-MegaAccount`
+  （MEGAcmd を直接叩くときは `whoami`）でテスト用アカウントと照合する。
 
 ## ライセンス
 
-MIT。MEGA SDK は BSD-2-Clause。`meganz/MEGAsync` のソースは制限的なライセンスなので、**コードを
+MIT。MEGA SDK は BSD-2-Clause、nlohmann/json は MIT。`meganz/MEGAsync` のソースは制限的なライセンスなので、**コードを
 コピーしない**（SDK の使い方の参考にするだけ）。MEGAcmd のコードを取り込むときは、その前にライセンスを確認する。
 
 ## 進め方

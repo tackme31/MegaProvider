@@ -3,11 +3,39 @@
 param(
     [string]$Configuration = 'Debug',
     [switch]$NoShell,
-    # Use the in-memory tree instead of MEGAcmd (no account needed).
-    [switch]$Fake
+    # Use the in-memory tree instead of MEGA (no account needed).
+    [switch]$Fake,
+    # Also (re)build the native host. Done automatically when it has never been built.
+    [switch]$Native
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+
+# The running host holds megaprovider-host.exe open in the module output, so the copy would fail.
+function Stop-Host {
+    $name = 'megaprovider-host-' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', $name, [IO.Pipes.PipeDirection]::InOut)
+    try { $pipe.Connect(200) } catch [TimeoutException] { return }
+    try {
+        $writer = [IO.StreamWriter]::new($pipe); $writer.NewLine = "`n"
+        $writer.WriteLine('{"id":1,"op":"shutdown"}'); $writer.Flush()
+        [void][IO.StreamReader]::new($pipe).ReadLine()
+    } finally { $pipe.Dispose() }
+    Get-Process megaprovider-host -ErrorAction SilentlyContinue | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+}
+Stop-Host
+
+$hostExe = Join-Path $root 'native/build/Release/megaprovider-host.exe'
+if ($Native -or -not (Test-Path $hostExe)) {
+    $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+    $cmake = Join-Path $vs 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe'
+    Push-Location (Join-Path $root 'native')
+    try {
+        if (-not (Test-Path 'build/CMakeCache.txt')) { & $cmake --preset msvc; if ($LASTEXITCODE) { exit $LASTEXITCODE } }
+        & $cmake --build --preset release -- -m '-v:minimal'
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    } finally { Pop-Location }
+}
 
 dotnet build (Join-Path $root 'MegaProvider.sln') -c $Configuration -nologo -v q
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

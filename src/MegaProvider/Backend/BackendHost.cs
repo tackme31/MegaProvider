@@ -1,10 +1,11 @@
+using MegaProvider.Backend.Host;
 using MegaProvider.Backend.MegaCmd;
 
 namespace MegaProvider.Backend;
 
 /// <summary>
-/// The one place that picks the implementation. Swapping MEGAcmd for another backend means changing this file only.
-/// Set MEGAPROVIDER_BACKEND=fake to use the in-memory tree without an account.
+/// The one place that picks the implementation. MEGAPROVIDER_BACKEND selects it:
+/// unset → the SDK host (native/), "megacmd" → MEGAcmd, "fake" → the in-memory tree (no account).
 /// </summary>
 internal static class BackendHost
 {
@@ -17,11 +18,18 @@ internal static class BackendHost
 
     private static (IMegaBackend, IMegaAuth?) Create()
     {
-        if (string.Equals(Environment.GetEnvironmentVariable("MEGAPROVIDER_BACKEND"), "fake", StringComparison.OrdinalIgnoreCase))
+        var choice = Environment.GetEnvironmentVariable("MEGAPROVIDER_BACKEND")?.ToLowerInvariant();
+        if (choice == "fake")
             return (new FakeBackend(), null);
         if (!OperatingSystem.IsWindows())
-            throw new PlatformNotSupportedException("The MEGAcmd backend currently supports Windows only.");
-        var auth = new MegaCmdAuth();
-        return (new MegaCmdBackend(auth), auth);
+            throw new PlatformNotSupportedException("MegaProvider currently supports Windows only.");
+        if (choice == "megacmd")
+        {
+            var cmdAuth = new MegaCmdAuth();
+            return (new MegaCmdBackend(cmdAuth), cmdAuth);
+        }
+        var client = new HostClient();
+        var auth = new HostAuth(client);
+        return (new HostBackend(client, auth), auth);
     }
 }

@@ -28,10 +28,17 @@ public interface IMegaBackend
     string Restore(string handle, string? destinationFolderPath);
 
     /// <summary>Uploads a local file or folder. An existing file of the same name gets a new version.</summary>
-    MegaItem Upload(string localPath, string destinationFolderPath);
+    /// <param name="progress">(bytes done, bytes total), called on the calling thread when supported.</param>
+    MegaItem Upload(string localPath, string destinationFolderPath, Action<long, long>? progress = null);
 
     /// <summary>Downloads into an existing local folder; returns the local path actually written.</summary>
-    string Download(string path, string localFolder);
+    string Download(string path, string localFolder, Action<long, long>? progress = null);
+
+    /// <summary>
+    /// Aborts the transfer running on another thread (Ctrl+C). The interrupted call then
+    /// throws <see cref="OperationCanceledException"/>. No-op where transfers cannot be cancelled.
+    /// </summary>
+    void CancelTransfer();
 }
 
 /// <summary>Login state behind Connect-/Get-/Disconnect-MegaAccount. One account at a time.</summary>

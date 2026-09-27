@@ -1,0 +1,9 @@
+[submodule "native/third_party/vcpkg"]
+	path = native/third_party/vcpkg
+	url = https://github.com/microsoft/vcpkg.git
+	# bootstrap-vcpkg.bat drops vcpkg.exe into the checkout
+	ignore = dirty
+[submodule "native/third_party/sdk"]
+	path = native/third_party/sdk
+	url = https://github.com/meganz/sdk.git
+	shallow = true

@@ -92,6 +92,16 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
     protected override void RenameItem(string path, string newName)
     {
         if (!ShouldProcess(path, $"Rename to '{newName}'")) return;
+        // MEGA would accept a duplicate name, but in a bulk rename that is almost always two
+        // inputs mapping to one output, so it is refused as Windows would.
+        var parent = ToMegaPath(GetParentPath(path, ""));
+        var self = Backend.Get(ToMegaPath(path));
+        if (Backend.List(parent).Any(c => c.Name == newName && c.Handle != self?.Handle))
+        {
+            WriteError(new ErrorRecord(new InvalidOperationException($"An item named '{newName}' already exists in that folder."),
+                "RenameTargetExists", ErrorCategory.ResourceExists, path));
+            return;
+        }
         var renamed = Backend.Rename(ToMegaPath(path), newName);
         WriteItemObject(renamed, MakePath(GetParentPath(path, ""), renamed.Name), renamed.IsFolder);
     }

@@ -25,7 +25,8 @@
 
 ### 標準のコマンド
 
-MEGAcmd 列は実アカウント、偽列は `FakeBackend`（`$env:MEGAPROVIDER_BACKEND = 'fake'`）での状態。
+すべて既定のバックエンド（SDK の常駐プロセス、`docs/HOST.md`）で動く。下の表の MEGAcmd 列は
+`$env:MEGAPROVIDER_BACKEND = 'megacmd'`、偽列は `'fake'` のときの状態。
 
 | コマンド | MEGAcmd | 偽 | 備考 |
 |---|---|---|---|
@@ -35,13 +36,15 @@ MEGAcmd 列は実アカウント、偽列は `FakeBackend`（`$env:MEGAPROVIDER_
 | `Test-Path` | ✅ | ✅ | |
 | タブ補完 | ✅ | ✅ | |
 | `Resolve-Path` / `Split-Path` / `Join-Path` | ✅ | ✅ | PowerShell 側の汎用処理。ワイルドカードも効く |
-| `Rename-Item` | ✅ | ✅ | 兄弟に同じ名前（大文字小文字を無視）があれば拒否する。MEGAcmd では 1 件 0.8 秒ほど |
+| `Rename-Item` | ✅ | ✅ | 兄弟に同じ名前があれば拒否する（一括の名前変更で 2 つが 1 つの名前に重なる事故を防ぐ）。MEGAcmd では大文字小文字も無視して比べる |
 | `Move-Item` | ✅ | ✅ | 移動先は既存のフォルダ。同名があっても上書きせず、同名の兄弟ができる（MEGA の仕様） |
 | `Remove-Item` | ✅ | ✅ | ゴミ箱への移動。元の場所を記録し、`Restore-MegaItem` で戻せる。完全削除はしない方針 |
-| `New-Item -ItemType Directory` | ✅ | ✅ | MEGAcmd では同名のフォルダがあると拒否される |
+| `New-Item -ItemType Directory` | ✅ | ✅ | 同名のフォルダがあると拒否される（サーバーの仕様） |
 | `-WhatIf` / `-Confirm` | ✅ | ✅ | 変更系の操作と、`Send-` / `Receive-` / `Restore-MegaItem` で効く |
 
-`Send-` / `Receive-MegaItem` は偽バックエンドでは使えない（転送は模擬していない）。
+`Send-` / `Receive-MegaItem` は偽バックエンドでは使えない（転送は模擬していない）。既定のバックエンドでは
+進捗バーが出て、Ctrl+C で転送を取り消せる。`Restore-MegaItem` は既定のバックエンドでは MEGA 本来の復元先を
+使うので、他のアプリで削除したものも元の場所へ戻る（MEGAcmd では独自に記録したものだけ）。
 
 ## 2. 実装しておくとよいもの
 
@@ -51,7 +54,6 @@ MEGAcmd 列は実アカウント、偽列は `FakeBackend`（`$env:MEGAPROVIDER_
 
 | 優先 | コマンド | 内容・論点 |
 |---|---|---|
-| 高 | レート制限（EAGAIN）へのリトライ | コマンドではないが、大量の一括処理に要る。MEGAcmd でどう見えるかをまだ引き当てていないので、実測してから入れる |
 | 中 | `Copy-Item`（`mega:` の中で） | `CopyItem` を実装する。ファイルのコピーは版が積まれ、フォルダのコピーは同名の兄弟ができる（MEGA の仕様） |
 | 中 | `Get-Content` | `IContentCmdletProvider` を実装する。テキストの小さなファイルを読む用途。MEGAcmd には `cat` がある（未実測） |
 | 低 | `Set-Content` / `Add-Content` | MEGA のファイルは書き換えられず、アップロードすると新しい版になる。どう見せるかは未決 |
@@ -82,5 +84,4 @@ MEGAcmd 列は実アカウント、偽列は `FakeBackend`（`$env:MEGAPROVIDER_
 
 - **ハンドルでの指定**（`mega:\#h1a2b3c` のような書き方）: 同名の兄弟を確実に指すため。
 - **2FA**: `Connect-MegaAccount` に `-AuthCode` を足す。
-- **名前に `*` や `?` を含むフォルダの中での名前変更・フォルダ作成**: MEGAcmd がパスをワイルドカードとして
-  読むため、いまは拒否している（`docs/MEGACMD.md`）。
+- **EAGAIN の実地確認**: 既定のバックエンドは 4 回まで送り直すが、実際に EAGAIN を引き当てて確かめてはいない。

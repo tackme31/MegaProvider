@@ -21,4 +21,12 @@
     <None Include="MegaProvider.format.ps1xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- The native host is built separately (scripts/dev.ps1 -Native); ship whatever build exists. -->
+  <PropertyGroup>
+    <HostExe>$(MSBuildThisFileDirectory)..\..\native\build\Release\megaprovider-host.exe</HostExe>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(HostExe)')">
+    <None Include="$(HostExe)" Link="megaprovider-host.exe" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

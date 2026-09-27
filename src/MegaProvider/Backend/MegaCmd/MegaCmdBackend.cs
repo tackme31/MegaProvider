@@ -103,7 +103,7 @@ internal sealed partial class MegaCmdBackend(MegaCmdAuth auth) : IMegaBackend
         return (targetPath.Trim('/') is var p && p.Length > 0 ? p + "/" : "") + item.Name;
     }
 
-    public MegaItem Upload(string localPath, string destinationFolderPath)
+    public MegaItem Upload(string localPath, string destinationFolderPath, Action<long, long>? progress = null)
     {
         var dest = RequireFolder(destinationFolderPath);
         var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(localPath));
@@ -113,7 +113,7 @@ internal sealed partial class MegaCmdBackend(MegaCmdAuth auth) : IMegaBackend
                ?? throw Unconfirmed($"upload '{name}'");
     }
 
-    public string Download(string path, string localFolder)
+    public string Download(string path, string localFolder, Action<long, long>? progress = null)
     {
         var item = RequireChain(path)[^1];
         var output = MegaCmdClient.Run("get", "H:" + item.Handle, localFolder);
@@ -121,6 +121,9 @@ internal sealed partial class MegaCmdBackend(MegaCmdAuth auth) : IMegaBackend
         var finished = DownloadFinished().Matches(output);
         return finished.Count > 0 ? finished[^1].Groups[1].Value.Trim() : Path.Combine(localFolder, item.Name);
     }
+
+    // MEGAcmd runs each transfer to completion in its own process; there is nothing to signal.
+    public void CancelTransfer() { }
 
     private static void CheckName(string name)
     {

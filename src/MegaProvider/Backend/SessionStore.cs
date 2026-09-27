@@ -2,7 +2,7 @@ using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace MegaProvider.Backend.MegaCmd;
+namespace MegaProvider.Backend;
 
 /// <summary>
 /// The session token, DPAPI-encrypted for the current user, as MegaExplorer does it.

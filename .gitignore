@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 
 # Claude Code local settings (test account etc.)
 .claude/settings.local.json
+
+# Native host build output (native/CMakePresets.json)
+native/build/

@@ -37,6 +37,24 @@ public abstract class MegaItemCommandBase : PSCmdlet
     protected void WriteLocalItem(string localPath) =>
         WriteObject(InvokeProvider.Item.Get(new[] { localPath }, false, true), true);
 
+    /// <summary>A progress callback for one transfer, shown as a PowerShell progress bar.</summary>
+    protected Action<long, long> ProgressFor(string activity, string item)
+    {
+        var record = new ProgressRecord(1, activity, item);
+        return (done, total) =>
+        {
+            record.PercentComplete = total > 0 ? (int)Math.Min(100, done * 100 / total) : -1;
+            record.StatusDescription = $"{item}  ({FormatBytes(done)} / {FormatBytes(total)})";
+            WriteProgress(record);
+        };
+    }
+
+    private static string FormatBytes(long n) =>
+        n >= 1 << 30 ? $"{n / (double)(1 << 30):0.0} GB" : n >= 1 << 20 ? $"{n / (double)(1 << 20):0.0} MB" : $"{n / 1024.0:0} KB";
+
+    // Ctrl+C: PowerShell calls this on another thread while ProcessRecord is blocked in a transfer.
+    protected override void StopProcessing() => Backend.CancelTransfer();
+
     /// <summary>One failed item should not stop the rest of a pipeline.</summary>
     protected void Try(string target, Action action)
     {
@@ -47,6 +65,10 @@ public abstract class MegaItemCommandBase : PSCmdlet
         catch (MegaNotConnectedException e)
         {
             ThrowTerminatingError(new ErrorRecord(e, "NotConnected", ErrorCategory.AuthenticationError, null));
+        }
+        catch (OperationCanceledException) when (Stopping)
+        {
+            throw new PipelineStoppedException();
         }
         catch (Exception e) when (e is not PipelineStoppedException)
         {
@@ -92,7 +114,7 @@ public sealed class SendMegaItemCommand : MegaItemCommandBase
                 foreach (var local in ResolveLocal(input, literal))
                 {
                     if (!ShouldProcess(local, $"Upload to '{Destination}'")) continue;
-                    var uploaded = Backend.Upload(local, _megaDestination);
+                    var uploaded = Backend.Upload(local, _megaDestination, ProgressFor("Uploading to MEGA", local));
                     WriteMegaItem((_megaDestination.Length > 0 ? _megaDestination + "/" : "") + uploaded.Name);
                 }
             });
@@ -137,7 +159,7 @@ public sealed class ReceiveMegaItemCommand : MegaItemCommandBase
                 foreach (var megaPath in ResolveMega(input, literal))
                 {
                     if (!ShouldProcess("mega:\\" + megaPath.Replace('/', '\\'), $"Download to '{_localDestination}'")) continue;
-                    WriteLocalItem(Backend.Download(megaPath, _localDestination));
+                    WriteLocalItem(Backend.Download(megaPath, _localDestination, ProgressFor("Downloading from MEGA", megaPath)));
                 }
             });
     }
