@@ -12,6 +12,8 @@
 
   <ItemGroup>
     <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
+    <!-- pwsh ships its own (newer) copy, which is the one loaded at run time. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

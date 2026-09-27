@@ -15,10 +15,14 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 
 ## 状態: PoC
 
-- 動くもの: 偽バックエンド（`FakeBackend`、メモリ上の木）の上で、`cd` / `ls` / `-Filter` /
-  `-Recurse` / `Rename-Item` / `New-Item -ItemType Directory` / `Move-Item` / `Remove-Item` /
-  `-WhatIf` / タブ補完。
-- **次の一手: 本物のバックエンド。** 案は 2 段階で考えている。
+- 動くもの:
+  - MEGAcmd バックエンド（実アカウント）: `Connect-` / `Get-` / `Disconnect-MegaAccount`、
+    `cd` / `ls` / `-Filter` / `-Recurse` / `Get-Item` / `Test-Path` / タブ補完。**読み取りのみ**。
+  - 偽バックエンド（`FakeBackend`、`$env:MEGAPROVIDER_BACKEND = 'fake'`）: 上に加えて `Rename-Item` /
+    `New-Item -ItemType Directory` / `Move-Item` / `Remove-Item` / `-WhatIf`。
+- **次の一手: MEGAcmd バックエンドの変更系**（`mkdir` / `mv` / `rm`）。同名の兄弟ができる挙動を
+  MEGAcmd で実測してから書く。
+- バックエンドは 2 段階で考えている。
   1. **MEGAcmd を裏で呼ぶ**（`MEGAclient.exe ls -l ...` 等の出力を解析）。C++ を書かずに実アカウントで
      操作感を確かめられる。インストール済みで、実測した出力形式や挙動は `docs/MEGACMD.md`。
      そこに無いことは実物で確認すること — 記憶で解析器を書かない。
@@ -41,8 +45,11 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 ```
 src/MegaProvider/
   MegaCloudProvider.cs     プロバイダ本体。PowerShell のパス ⇔ MEGA のパスの変換はここだけ
-  Backend/IMegaBackend.cs  バックエンドの境界。パスは '/' 区切りでルート相対（"" がルート）
+  AccountCommands.cs       Connect- / Get- / Disconnect-MegaAccount
+  Backend/IMegaBackend.cs  バックエンドと認証の境界。パスは '/' 区切りでルート相対（"" がルート）
+  Backend/BackendHost.cs   実装を選ぶ唯一の場所（差し替えるときはここだけ変える）
   Backend/FakeBackend.cs   メモリ上の偽物。同名の兄弟（dup.txt ×2）をわざと含む
+  Backend/MegaCmd/         MEGAclient.exe を呼ぶ実装。セッションは %LOCALAPPDATA%\MegaProvider\session.dat
   MegaProvider.psd1        モジュールマニフェスト（ビルド出力へコピーされる）
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
@@ -56,6 +63,7 @@ MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プ�
 ```powershell
 dotnet build                     # MegaProvider.sln
 ./scripts/dev.ps1                # ビルド → 新しい pwsh で Import-Module → Set-Location mega:
+./scripts/dev.ps1 -Fake          # 偽バックエンドで開く（アカウント不要）
 ./scripts/dev.ps1 -NoShell       # ビルドして .psd1 のパスを出すだけ（スクリプトからの確認用）
 ```
 

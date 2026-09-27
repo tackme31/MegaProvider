@@ -90,5 +90,3 @@ public sealed class FakeBackend : IMegaBackend
         newParent.Children.Add(n);
     }
 }
-
-public sealed class MegaItemNotFoundException(string message) : Exception(message);

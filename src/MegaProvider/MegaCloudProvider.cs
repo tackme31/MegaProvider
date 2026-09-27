@@ -8,10 +8,8 @@ namespace MegaProvider;
 [CmdletProvider("Mega", ProviderCapabilities.ShouldProcess | ProviderCapabilities.Filter)]
 public sealed class MegaCloudProvider : NavigationCmdletProvider
 {
-    // One backend per process: providers are instantiated per call, so state must not live on the instance.
-    private static readonly Lazy<IMegaBackend> SharedBackend = new(() => new FakeBackend());
-
-    private static IMegaBackend Backend => SharedBackend.Value;
+    // Providers are instantiated per call, so the backend (and its session) lives in BackendHost, not here.
+    private static IMegaBackend Backend => BackendHost.Backend;
 
     protected override Collection<PSDriveInfo> InitializeDefaultDrives() =>
         new() { new PSDriveInfo("mega", ProviderInfo, "", "MEGA cloud drive", null) };
@@ -21,6 +19,10 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
         path.Replace('\\', '/').Trim('/');
 
     protected override bool IsValidPath(string path) => true;
+
+    // The drive root is "", which the base implementation rejects; `cd mega:\; ls -Recurse` asks for it.
+    protected override string GetChildName(string path) =>
+        ToMegaPath(path).Length == 0 ? "" : base.GetChildName(path);
 
     protected override bool ItemExists(string path) => Backend.Get(ToMegaPath(path)) is not null;
 

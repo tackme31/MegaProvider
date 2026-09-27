@@ -7,7 +7,7 @@
     Description          = 'Exposes MEGA cloud storage as a PowerShell drive (mega:).'
     PowerShellVersion    = '7.4'
     CompatiblePSEditions = @('Core')
-    CmdletsToExport      = @()
+    CmdletsToExport      = @('Connect-MegaAccount', 'Get-MegaAccount', 'Disconnect-MegaAccount')
     FunctionsToExport    = @()
     AliasesToExport      = @()
     VariablesToExport    = @()
