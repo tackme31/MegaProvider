@@ -20,12 +20,18 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
   `-WhatIf` / タブ補完。
 - **次の一手: 本物のバックエンド。** 案は 2 段階で考えている。
   1. **MEGAcmd を裏で呼ぶ**（`MEGAclient.exe ls -l ...` 等の出力を解析）。C++ を書かずに実アカウントで
-     操作感を確かめられる。MEGAcmd は未インストールなので、まず入れるところから。出力形式は
-     実物で確認すること — 記憶で解析器を書かない。
+     操作感を確かめられる。インストール済みで、実測した出力形式や挙動は `docs/MEGACMD.md`。
+     そこに無いことは実物で確認すること — 記憶で解析器を書かない。
   2. 解析の遅さや脆さが気になったら、**自前のデーモン**に差し替える。候補は MegaExplorer の
      `megatool`（`IMegaClient` の上の CLI）に、名前付きパイプで JSON を返す `serve` を足したもの。
      大きなアカウントは `fetchNodes` に数分かかるので、コマンドのたびにログインする作りは成り立たず、
      常駐するプロセスが必要になる。
+- **認証の方針（決定済み）**:
+  - `Connect-MegaAccount` でログインし、セッションを自前のファイルに保存する。その後は `mega:` を
+    自由に使える。形式は MegaExplorer にならう（セッショントークンを DPAPI で暗号化）が、
+    **ファイルは MegaExplorer と共有しない**（完全に別プロジェクト）。
+  - 同時に扱えるアカウントは 1 つだけ。`Connect` し直したら差し替える。
+  - 2FA は後で対応する（MEGAcmd は `--auth-code` で受けられる）。
 - 未対応: `-File` / `-Directory`（`GetChildItemsDynamicParameters` が要る）、`Copy-Item`、
   アップロードとダウンロード（`Get-Content` や、ローカルとの `Copy-Item` をどう表すかは未決）、
   書式ファイル（`.format.ps1xml`）、テスト（Pester を想定）。
@@ -40,6 +46,7 @@ src/MegaProvider/
   MegaProvider.psd1        モジュールマニフェスト（ビルド出力へコピーされる）
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
+docs/MEGACMD.md            MEGAcmd の実測メモ（認証、出力形式、終了コード）
 ```
 
 MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接 MEGAcmd を呼ばない。
@@ -99,9 +106,11 @@ dotnet build                     # MegaProvider.sln
 - アカウント名は `MEGAEXPLORER_TEST_ACCOUNT`（gitignore 済みの `.claude/settings.local.json` の `env`）。
   パスワードは `MEGAEXPLORER_TEST_PASSWORD`（Windows のユーザー環境変数。ファイルには絶対に書かない）。
   変数名は MegaExplorer と共有している。
-- 資格情報が要る手順（MEGAcmd へのログインなど）は、ユーザー自身に実行してもらう。
-- MEGAcmd のセッションは MegaExplorer とは独立している。バックエンドを繋いだら、最初に
-  「今どのアカウントでログインしているか」を確認する手段（`whoami` 相当）を作り、テスト用アカウントと照合してから操作する。
+- テスト用アカウントへのログインは Claude が上の環境変数を使って行ってよい。パスワードは必ず
+  変数参照（`"$MEGAEXPLORER_TEST_PASSWORD"`）で渡し、値を表示・ログ出力・ファイル化しない。
+  `session` が出すトークンも秘密として扱い、表示しない。
+- MEGAcmd のセッションは MegaExplorer とは独立している。操作の前に `whoami` で
+  テスト用アカウントと照合する。
 
 ## ライセンス
 
