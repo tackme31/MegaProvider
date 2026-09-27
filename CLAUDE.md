@@ -54,6 +54,7 @@ src/MegaProvider/
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
 docs/MEGACMD.md            MEGAcmd の実測メモ（認証、出力形式、終了コード）
+docs/COMMANDS.md           実装済み・候補のコマンド一覧
 ```
 
 MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接 MEGAcmd を呼ばない。
