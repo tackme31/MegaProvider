@@ -97,6 +97,10 @@
   （`EnsureUnambiguous`）で祖先の一覧を取るので、2 秒の一覧キャッシュがどれだけ効くかもここで見る。
   テスト用アカウントの砂場で、件数を決めてから行う。
 - **MEGAcmd の実測**: `cp`（いまは `Copy-Item` が未対応のエラー）と、2FA のコードが無い・違うときの出力。
+- **Linux 対応（予定。macOS は対応しない）**: C# のプロバイダと偽バックエンドは OS に依存しない。
+  Windows 専用なのは、セッションの DPAPI（`SessionStore.cs`、Linux では libsecret などに替える）、
+  ホストの Win32 名前付きパイプ（`native/src/host/main.cpp`、Unix ドメインソケットに替える）、
+  native のビルド（VS・v142・`x64-windows-mega` の triplet）、`.exe` 決め打ちのパス（`HostClient.cs`、`MegaCmdClient.cs`）。
 
 ## 4. 既知の問題（未対応）
 
