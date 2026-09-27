@@ -56,6 +56,7 @@ native/                    megaprovider-host（C++、CMake + vcpkg）。src/core
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
 scripts/test.ps1           ビルドして Pester を流す（スイートごとに新しい pwsh）
 scripts/host-request.ps1   動いているホストへ要求を 1 つ送って応答を見る（プロトコルのデバッグ用）
+scripts/package.ps1        Release ビルド → artifacts/ に配布用 zip → 展開して読み込めるか確認。リリースは /release スキル
 tests/Fake.Tests.ps1       偽バックエンドのテスト（アカウント不要）
 tests/Live.Tests.ps1       テスト用アカウントでの端から端までのテスト
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）

@@ -488,3 +488,6 @@ $RECYCLE.BIN/
 
 # Native host build output (native/CMakePresets.json)
 native/build/
+
+# The /release skill, not a build output ([Rr]elease/ above)
+!.claude/skills/release/
