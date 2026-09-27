@@ -13,6 +13,9 @@ internal static class BackendHost
 
     public static IMegaBackend Backend => Shared.Value.Backend;
 
+    /// <summary>Null for the fake backend, which has no account.</summary>
+    public static IMegaAuth? AuthOrNull => Shared.Value.Auth;
+
     public static IMegaAuth Auth =>
         Shared.Value.Auth ?? throw new NotSupportedException("The fake backend has no account (MEGAPROVIDER_BACKEND=fake).");
 

@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Text.Json.Nodes;
 
 namespace MegaProvider.Backend.Host;
 
@@ -15,12 +16,12 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
     private readonly object _gate = new();
     private DateTime _verifiedAt = DateTime.MinValue;
 
-    public string Connect(string email, string password)
+    public string Connect(string email, string password, Action<LoginProgress>? progress = null)
     {
         lock (_gate)
         {
             _verifiedAt = DateTime.MinValue;
-            var result = client.Call("login", new { email, password })!;
+            var result = client.Call("login", new { email, password }, Relay(progress))!;
             SessionStore.Save(result["session"]!.GetValue<string>());
             _verifiedAt = DateTime.UtcNow;
             return result["email"]!.GetValue<string>();
@@ -48,8 +49,10 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
         }
     }
 
+    public void EnsureSession(Action<LoginProgress>? progress = null) => EnsureSession(force: false, progress);
+
     /// <summary>Makes the host hold our saved session, resuming it if the host has none or another one.</summary>
-    public void EnsureSession(bool force = false)
+    public void EnsureSession(bool force, Action<LoginProgress>? progress = null)
     {
         lock (_gate)
         {
@@ -60,7 +63,7 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
             {
                 try
                 {
-                    client.Call("resume", new { session = ours });
+                    client.Call("resume", new { session = ours }, Relay(progress));
                 }
                 catch (HostException e) when (e.Code == HostClient.CodeBadSession)
                 {
@@ -71,6 +74,21 @@ internal sealed class HostAuth(HostClient client) : IMegaAuth
             _verifiedAt = DateTime.UtcNow;
         }
     }
+
+    private static Action<JsonObject>? Relay(Action<LoginProgress>? progress) =>
+        progress is null ? null : p =>
+        {
+            var stage = p["stage"]?.GetValue<string>() switch
+            {
+                "login" => LoginStage.LoggingIn,
+                "load" => LoginStage.Loading,
+                "download" => LoginStage.Downloading,
+                "build" => LoginStage.Building,
+                _ => (LoginStage?)null,
+            };
+            if (stage is not null)
+                progress(new LoginProgress(stage.Value, p["done"]?.GetValue<long>() ?? 0, p["total"]?.GetValue<long>() ?? 0));
+        };
 
     public void Invalidate()
     {

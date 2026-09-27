@@ -182,9 +182,9 @@ Json Service::dispatch(const std::string& op, const Json& args, const Emit& emit
     if (op == "status")
         return status();
     if (op == "login")
-        return login(args);
+        return login(args, emit);
     if (op == "resume")
-        return resume(args);
+        return resume(args, emit);
     if (op == "logout")
         return logout();
     if (op == "list")
@@ -225,11 +225,55 @@ void Service::requireReady() const
 
 std::string Service::email() const { return unwrap(mClient.currentAccountIdentity()).email; }
 
-void Service::fetchNodes()
+// The SDK's progress is only the bytes of the node-list download; decrypting and building the
+// tree afterwards reports nothing (57% of the time on a 640k-node account, MegaExplorer's
+// STUDY_FETCHNODES_PROGRESS_UI.md). The last event need not reach 100%, so a quiet spell also
+// counts as "download done". Everything is emitted from this thread, never the SDK's.
+void Service::fetchNodes(const Emit& emit)
 {
-    unwrap(await<void>([&](auto done) {
-        mClient.fetchNodes([](std::uint64_t, std::uint64_t) {}, std::move(done));
-    }));
+    using namespace std::chrono_literals;
+    constexpr auto kQuietMeansBuilding = 8s;
+
+    struct Bytes
+    {
+        std::atomic<std::uint64_t> done{0};
+        std::atomic<std::uint64_t> total{0};
+    };
+    auto bytes = std::make_shared<Bytes>();
+    auto promise = std::make_shared<std::promise<Result<void>>>();
+    auto future = promise->get_future();
+    emit({{"progress", {{"stage", "load"}}}});
+    mClient.fetchNodes(
+        [bytes](std::uint64_t done, std::uint64_t total) {
+            bytes->done = done;
+            bytes->total = total;
+        },
+        [promise](Result<void> r) { promise->set_value(std::move(r)); });
+
+    bool building = false;
+    std::uint64_t lastDone = 0;
+    auto lastChange = std::chrono::steady_clock::now();
+    while (future.wait_for(250ms) != std::future_status::ready)
+    {
+        const std::uint64_t done = bytes->done;
+        const std::uint64_t total = bytes->total;
+        const auto now = std::chrono::steady_clock::now();
+        if (building || total == 0) // no denominator yet: the size of the response is not known
+            continue;
+        if (done != lastDone)
+        {
+            lastDone = done;
+            lastChange = now;
+        }
+        if (done >= total || now - lastChange > kQuietMeansBuilding)
+        {
+            building = true;
+            emit({{"progress", {{"stage", "build"}}}});
+        }
+        else if (lastChange == now)
+            emit({{"progress", {{"stage", "download"}, {"done", done}, {"total", total}}}});
+    }
+    unwrap(future.get());
     mReady = true;
 }
 
@@ -255,7 +299,7 @@ Json Service::status()
     return {{"loggedIn", false}};
 }
 
-Json Service::login(const Json& args)
+Json Service::login(const Json& args, const Emit& emit)
 {
     const std::string user = requireString(args, "email");
     const std::string password = requireString(args, "password");
@@ -263,17 +307,18 @@ Json Service::login(const Json& args)
 
     std::lock_guard<std::mutex> lock(mAuthMutex);
     dropSession();
+    emit({{"progress", {{"stage", "login"}}}});
     unwrap(await<void>([&](auto done) {
         if (authCode.empty())
             mClient.login(user, password, std::move(done));
         else
             mClient.multiFactorAuthLogin(user, password, authCode, std::move(done));
     }));
-    fetchNodes();
+    fetchNodes(emit);
     return {{"email", email()}, {"session", unwrap(mClient.currentSessionToken())}};
 }
 
-Json Service::resume(const Json& args)
+Json Service::resume(const Json& args, const Emit& emit)
 {
     const std::string session = requireString(args, "session");
 
@@ -281,8 +326,9 @@ Json Service::resume(const Json& args)
     if (mReady && unwrap(mClient.currentSessionToken()) == session)
         return {{"email", email()}};
     dropSession();
+    emit({{"progress", {{"stage", "login"}}}});
     unwrap(await<void>([&](auto done) { mClient.loginWithSession(session, std::move(done)); }));
-    fetchNodes();
+    fetchNodes(emit);
     return {{"email", email()}};
 }
 

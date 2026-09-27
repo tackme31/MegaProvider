@@ -42,7 +42,7 @@ internal sealed class HostClient
     private volatile bool _aborted;
 
     /// <summary>Sends one request and waits for its result, relaying progress lines if any.</summary>
-    public JsonNode? Call(string op, object? args = null, Action<long, long>? progress = null)
+    public JsonNode? Call(string op, object? args = null, Action<JsonObject>? progress = null)
     {
         lock (_gate)
         {
@@ -71,7 +71,7 @@ internal sealed class HostClient
         _pipe?.Dispose();
     }
 
-    private JsonNode? CallOnce(string op, object? args, Action<long, long>? progress)
+    private JsonNode? CallOnce(string op, object? args, Action<JsonObject>? progress)
     {
         _aborted = false;
         var id = ++_nextId;
@@ -88,7 +88,7 @@ internal sealed class HostClient
                 if (message["id"]?.GetValue<int>() != id) continue;
                 if (message["progress"] is JsonObject p)
                 {
-                    progress?.Invoke(p["done"]!.GetValue<long>(), p["total"]!.GetValue<long>());
+                    progress?.Invoke(p);
                     continue;
                 }
                 if (message["ok"]!.GetValue<bool>())

@@ -29,8 +29,8 @@ private:
     Json dispatch(const std::string& op, const Json& args, const Emit& emit);
 
     Json status();
-    Json login(const Json& args);
-    Json resume(const Json& args);
+    Json login(const Json& args, const Emit& emit);
+    Json resume(const Json& args, const Emit& emit);
     Json logout();
     Json list(const Json& args);
     Json rubbish();
@@ -46,7 +46,7 @@ private:
 
     void requireReady() const;
     void dropSession(); // local logout; caller holds mAuthMutex
-    void fetchNodes();
+    void fetchNodes(const Emit& emit);
     std::string email() const;
 
     MegaSdkClient& mClient;

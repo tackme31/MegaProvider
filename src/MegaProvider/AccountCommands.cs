@@ -35,8 +35,16 @@ public sealed class ConnectMegaAccountCommand : MegaAccountCommandBase
 
     protected override void ProcessRecord() => Invoke(() =>
     {
-        var email = BackendHost.Auth.Connect(Credential.UserName, Credential.GetNetworkCredential().Password);
-        WriteObject(new MegaAccountInfo(email));
+        var bar = new LoginProgressBar(WriteProgress);
+        try
+        {
+            var email = BackendHost.Auth.Connect(Credential.UserName, Credential.GetNetworkCredential().Password, bar.Report);
+            WriteObject(new MegaAccountInfo(email));
+        }
+        finally
+        {
+            bar.Complete();
+        }
     }, "ConnectFailed");
 }
 
@@ -45,7 +53,11 @@ public sealed class ConnectMegaAccountCommand : MegaAccountCommandBase
 public sealed class GetMegaAccountCommand : MegaAccountCommandBase
 {
     protected override void ProcessRecord() =>
-        Invoke(() => WriteObject(new MegaAccountInfo(BackendHost.Auth.GetAccountEmail())), "GetAccountFailed");
+        Invoke(() =>
+        {
+            LoginProgressBar.EnsureSession(WriteProgress);
+            WriteObject(new MegaAccountInfo(BackendHost.Auth.GetAccountEmail()));
+        }, "GetAccountFailed");
 }
 
 /// <summary>Logs out (invalidating the session on the server) and forgets it.</summary>

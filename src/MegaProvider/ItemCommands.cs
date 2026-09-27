@@ -8,7 +8,7 @@ namespace MegaProvider;
 /// <summary>Path plumbing shared by the cmdlets that take both mega: and local paths.</summary>
 public abstract class MegaItemCommandBase : PSCmdlet
 {
-    protected static IMegaBackend Backend => BackendHost.Backend;
+    protected IMegaBackend Backend => LoginProgressBar.EnsureSession(WriteProgress);
 
     /// <summary>Resolves a PowerShell path (wildcards expanded unless literal) that must be on a given provider.</summary>
     protected Collection<string> Resolve(string path, bool literal, Type providerType, string what)
@@ -44,16 +44,13 @@ public abstract class MegaItemCommandBase : PSCmdlet
         return (done, total) =>
         {
             record.PercentComplete = total > 0 ? (int)Math.Min(100, done * 100 / total) : -1;
-            record.StatusDescription = $"{item}  ({FormatBytes(done)} / {FormatBytes(total)})";
+            record.StatusDescription = $"{item}  ({Bytes.Format(done)} / {Bytes.Format(total)})";
             WriteProgress(record);
         };
     }
 
-    private static string FormatBytes(long n) =>
-        n >= 1 << 30 ? $"{n / (double)(1 << 30):0.0} GB" : n >= 1 << 20 ? $"{n / (double)(1 << 20):0.0} MB" : $"{n / 1024.0:0} KB";
-
     // Ctrl+C: PowerShell calls this on another thread while ProcessRecord is blocked in a transfer.
-    protected override void StopProcessing() => Backend.CancelTransfer();
+    protected override void StopProcessing() => BackendHost.Backend.CancelTransfer();
 
     /// <summary>One failed item should not stop the rest of a pipeline.</summary>
     protected void Try(string target, Action action)

@@ -19,7 +19,8 @@ internal sealed partial class MegaCmdAuth : IMegaAuth
     /// <summary>Bumped whenever the logged-in session may have changed; caches keyed to it must be dropped.</summary>
     public int Generation { get; private set; }
 
-    public string Connect(string email, string password)
+    // MEGAcmd prints nothing while it logs in, so there is no progress to relay.
+    public string Connect(string email, string password, Action<LoginProgress>? progress = null)
     {
         lock (_gate)
         {
@@ -54,8 +55,10 @@ internal sealed partial class MegaCmdAuth : IMegaAuth
         }
     }
 
+    public void EnsureSession(Action<LoginProgress>? progress = null) => EnsureSession(force: false);
+
     /// <summary>Makes MEGAcmd hold our persisted session. Cheap when verified within the last few seconds.</summary>
-    public void EnsureSession(bool force = false)
+    public void EnsureSession(bool force)
     {
         lock (_gate)
         {

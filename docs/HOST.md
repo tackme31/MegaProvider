@@ -91,7 +91,12 @@
 ← {"id":1,"ok":true,"result":[{"handle":"...","name":"Notes","folder":true,"size":0,"mtime":1756022310}]}
 ← {"id":2,"ok":false,"error":{"code":-9,"message":"Not found"}}
 ← {"id":3,"progress":{"done":1048576,"total":5242880}}      （転送中。最後に ok の行が来る）
+← {"id":4,"progress":{"stage":"download","done":1048576,"total":5242880}}   （login / resume の段階）
 ```
+
+- `login` / `resume` の進捗は `stage` 付き: `login`（認証）→ `load`（`fetchNodes` 開始）→ `download`
+  （ノード一覧の受信バイト数。SDK の状態キャッシュが効くと出ない）→ `build`（復号と木の組み立て。進捗なし）。
+  `build` は受信が総量に達したとき、または 8 秒途絶えたときに出る（最後の通知が 100% に届くとは限らない）。
 
 - ハンドルは MEGA の 8 文字の base64（Web 版や MEGAcmd の `H:xxxxxxxx` と同じ）。フォルダの引数で
   `null` や省略はクラウドドライブのルート。
@@ -103,8 +108,8 @@
 | op | args | result |
 |---|---|---|
 | `status` | — | `{loggedIn, email?, session?}` |
-| `login` | `{email, password, authCode?}` | `{email, session}`（`fetchNodes` まで終えてから返る） |
-| `resume` | `{session}` | `{email}`。同じセッションを持っていれば何もしない |
+| `login` | `{email, password, authCode?}` | 段階の進捗行のあと `{email, session}`（`fetchNodes` まで終えてから返る） |
+| `resume` | `{session}` | 段階の進捗行のあと `{email}`。同じセッションを持っていれば何もしない（進捗行も出ない） |
 | `logout` | — | サーバー側でもセッションを無効にする |
 | `list` | `{handle?}` | 子の一覧 |
 | `rubbish` | — | ゴミ箱の一番上の階層 |

@@ -49,11 +49,23 @@ public interface IMegaBackend
     void CancelTransfer();
 }
 
+public enum LoginStage { LoggingIn, Loading, Downloading, Building }
+
+/// <summary>A step of logging in. Done/Total are bytes of the node list, known only while downloading.</summary>
+public sealed record LoginProgress(LoginStage Stage, long Done = 0, long Total = 0);
+
 /// <summary>Login state behind Connect-/Get-/Disconnect-MegaAccount. One account at a time.</summary>
 public interface IMegaAuth
 {
     /// <summary>Logs in, persists the session, and returns the account's e-mail.</summary>
-    string Connect(string email, string password);
+    /// <param name="progress">Called on the calling thread when supported. Loading a large account takes minutes.</param>
+    string Connect(string email, string password, Action<LoginProgress>? progress = null);
+
+    /// <summary>
+    /// Makes the backend hold the persisted session, logging in with it if needed (the slow part after a
+    /// restart). Cheap when verified recently. Throws <see cref="MegaNotConnectedException"/> if there is none.
+    /// </summary>
+    void EnsureSession(Action<LoginProgress>? progress = null);
 
     /// <summary>The e-mail of the persisted session's account; throws <see cref="MegaNotConnectedException"/> if none.</summary>
     string GetAccountEmail();

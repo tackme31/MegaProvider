@@ -110,16 +110,17 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
         if (op is not ("list" or "rubbish" or "path" or "restoreTarget"))
             lock (_listings) _listings.Clear();
         auth.EnsureSession();
+        var relay = progress is null ? null : (Action<JsonObject>)(p => progress(p["done"]!.GetValue<long>(), p["total"]!.GetValue<long>()));
         try
         {
-            return client.Call(op, args, progress);
+            return client.Call(op, args, relay);
         }
         catch (HostException e) when (e.Code is HostClient.CodeNotLoggedIn or HostClient.CodeBadSession)
         {
             // The host restarted, or its session was killed elsewhere; give it the saved one again.
             auth.Invalidate();
             auth.EnsureSession();
-            return client.Call(op, args, progress);
+            return client.Call(op, args, relay);
         }
         catch (HostException e) when (e.Code == HostClient.CodeNoEnt)
         {

@@ -9,7 +9,8 @@ namespace MegaProvider;
 public sealed class MegaCloudProvider : NavigationCmdletProvider
 {
     // Providers are instantiated per call, so the backend (and its session) lives in BackendHost, not here.
-    private static IMegaBackend Backend => BackendHost.Backend;
+    // Checking the session first lets a slow login (after the host restarted) show a progress bar.
+    private IMegaBackend Backend => LoginProgressBar.EnsureSession(WriteProgress);
 
     protected override Collection<PSDriveInfo> InitializeDefaultDrives() =>
         new() { new PSDriveInfo("mega", ProviderInfo, "", "MEGA cloud drive", null) };
@@ -30,7 +31,7 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
         var folder = "";
         foreach (var part in megaPath.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
-            var matches = NameMatch.Candidates(Backend.List(folder), part, c => c.Name);
+            var matches = NameMatch.Candidates(BackendHost.Backend.List(folder), part, c => c.Name);
             if (matches.Count > 1)
                 throw new MegaAmbiguousPathException(
                     $"'{megaPath}' is ambiguous: {matches.Count} items named '{part}' are in the same folder. " +
