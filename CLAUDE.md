@@ -18,7 +18,8 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 - 動くもの: 一覧は `docs/COMMANDS.md`。読み取り・変更系・転送（`Send-` / `Receive-MegaItem`）・
   ゴミ箱からの復元まで動く。
 - 実アカウントでの確認は `mega:\MegaProviderTest` の下で行う（テスト用アカウントの砂場）。
-- いまは Windows 専用。Linux には対応する予定、macOS には対応しない。調査結果と進める順序は `docs/LINUX.md`。
+- Windows と Linux（x64）で動く。macOS には対応しない。Linux 特有のこと（ソケット、セッションの守り方、`ls` が
+  `Get-ChildItem` でないこと、ビルドと配布）は `docs/LINUX.md`。変更は両方の OS で確かめる（Linux の環境は `CLAUDE.local.md`）。
 - **次の一手**: プロダクトとして出すための残り（`docs/COMMANDS.md` の「4.」にあるパイプ名の版）。そのあと「2. 実装しておくとよいもの」。
   既知の問題は同じファイルの「4.」。
 - バックエンドは 2 つあり、`$env:MEGAPROVIDER_BACKEND` で選ぶ（`Backend/BackendHost.cs`）。
@@ -57,13 +58,13 @@ scripts/dev.ps1            ビルドして、モジュールを読み込んだ�
 scripts/test.ps1           ビルドして Pester を流す（スイートごとに新しい pwsh）
 scripts/host-request.ps1   動いているホストへ要求を 1 つ送って応答を見る（プロトコルのデバッグ用）
 scripts/Get-HostPipeName.ps1  ホストの接続先（HostClient.PipeName と同じもの）を返す
-scripts/package.ps1        Release ビルド → artifacts/ に配布用 zip → 展開して読み込めるか確認。リリースは /release スキル
+scripts/package.ps1        Release ビルド → artifacts/ に配布物（Windows は zip、Linux は tar.gz）→ 展開して読み込めるか確認。リリースは /release スキル
 tests/Fake.Tests.ps1       偽バックエンドのテスト（アカウント不要）
 tests/Live.Tests.ps1       テスト用アカウントでの端から端までのテスト
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
 docs/COMMANDS.md           実装済み・候補のコマンド一覧
 docs/HOST.md               常駐プロセスの設計、ビルド、プロトコル
-docs/LINUX.md              Linux 対応の調査（Windows 依存の箇所、置き換え方、順序）
+docs/LINUX.md              Linux 対応（OS ごとに違う箇所、置き換え方、実物で確かめたこと、配布）
 ```
 
 MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接ホストを呼ばない。

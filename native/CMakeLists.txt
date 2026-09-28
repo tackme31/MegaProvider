@@ -43,4 +43,7 @@ else()
     target_sources(megaprovider-host PRIVATE src/host/Platform_unix.cpp)
     # The SDK's own choice for Unix (sdklib_target.cmake), minus -Wconversion.
     target_compile_options(megaprovider-host PRIVATE -Wall -Wextra)
+    # So the release runs wherever its glibc is new enough (README), not only where libstdc++ is
+    # as new as the build machine's. Allowed by the GCC Runtime Library Exception.
+    target_link_options(megaprovider-host PRIVATE -static-libstdc++ -static-libgcc)
 endif()

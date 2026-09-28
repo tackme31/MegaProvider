@@ -2,9 +2,9 @@
 name: release
 description: >-
   Cut a MegaProvider release: bump the minor version in MegaProvider.psd1,
-  build and package the Windows zip, tag it, push main, and create the GitHub
-  release with gh. `/release 0.3.0` overrides the version. Only when the user
-  types /release.
+  build and package the Windows zip and the Linux tarball, tag it, push main,
+  and create the GitHub release with gh. `/release 0.3.0` overrides the version.
+  Only when the user types /release.
 disable-model-invocation: true
 ---
 
@@ -13,7 +13,13 @@ disable-model-invocation: true
 `main` の今の状態を出す。**`/release` を打ったこと自体が `main` とタグの push、GitHub 公開の指示**
 なので、途中で承認は取らない。何かが失敗したらそこで止まって報告する。
 
+配布物は 2 つ。Windows の zip は Windows で、Linux の tar.gz は Linux で作る（ネイティブのホストは
+その OS でしかビルドできない）。Linux の環境への入り方と、Windows 側のリポジトリの変更の取り込み方は
+`CLAUDE.local.md`（マシン固有なのでここには書かない）。
+
 ## 1. 前提確認（1 つでも欠けたら何もせずに理由を言って終わる）
+
+Windows で:
 
 ```
 git rev-parse --abbrev-ref HEAD                     # main
@@ -25,6 +31,9 @@ gh auth status                                      # ログイン済み
 
 `HEAD` が `origin/main` より先行しているのはよい（そのコミットごと出る）。
 
+Linux の環境に入れて、その clone が作業ツリーの変更なしで `HEAD` まで早送りできること
+（`git status --porcelain` が空）。
+
 ## 2. 版を決めて上げる
 
 - 引数があればそれ（`v` 付きなら剥がす）。
@@ -34,7 +43,7 @@ gh auth status                                      # ログイン済み
 
 `git tag -l vX.Y.Z` が空、`gh release view vX.Y.Z` が not found であることを確かめる。
 
-版の在処は `src/MegaProvider/MegaProvider.psd1` の `ModuleVersion` だけ（zip 名もここから出る。
+版の在処は `src/MegaProvider/MegaProvider.psd1` の `ModuleVersion` だけ（配布物の名前もここから出る。
 native の `project(... VERSION)` は使っていないので触らない）。変えるときは書き換えてコミットする。
 
 ```
@@ -44,21 +53,28 @@ git commit           # Subject: Bump the version to X.Y.Z（trailer は他のコ
 
 ## 3. テストとパッケージ
 
-PowerShell から:
+**Windows** の PowerShell から:
 
 ```
 ./scripts/test.ps1
 ./scripts/package.ps1
 ```
 
+**Linux** では、clone を 2. のコミットまで早送りして（`git log -1` が Windows の `HEAD` と同じか見る）から、
+pwsh で同じ 2 つを流す。WSL ではホストのビルドの並列数を絞る（`CMAKE_BUILD_PARALLEL_LEVEL=8`。
+絞らないと Windows 側のメモリが尽きる）。出来た tar.gz を Windows の `artifacts/` へコピーする。
+
 `package.ps1` は host と module の Release ビルド（`dev.ps1 -Native`。先に動いているホストを止める）
-→ MSVC ランタイム・LICENSE・生成した THIRD-PARTY-NOTICES.txt と一緒に zip → 中身の検査 →
-一時フォルダへ展開し、新しい pwsh で `Import-Module` して偽バックエンドで `mega:\` を一覧、
-までをやる。**手で zip を作らない**（検査が抜ける）。出来上がりは
-`artifacts/MegaProvider-X.Y.Z-win-x64.zip`。**zip 名の版が 2. の版と一致しているか見る。**
+→ LICENSE・生成した THIRD-PARTY-NOTICES.txt（Windows では MSVC ランタイムも）と一緒に固める →
+中身の検査（Linux ではホストの実行ビットと、要求する glibc が README の約束（2.35）を超えないこと）→
+一時フォルダへ展開し、新しい pwsh で `Import-Module` して偽バックエンドで `mega:\` を一覧、までをやる。
+**手で固めない**（検査が抜ける）。出来上がりは次の 2 つで、**名前の版が 2. の版と一致しているか見る。**
+
+- `artifacts/MegaProvider-X.Y.Z-win-x64.zip`
+- `artifacts/MegaProvider-X.Y.Z-linux-x64.tar.gz`
 
 `-Live` は既定では流さない（1 分かかり、テスト用アカウントの状態に左右される）。前のタグから
-`native/` か `src/MegaProvider/Backend/` に変更があれば流す。
+`native/` か `src/MegaProvider/Backend/` に変更があれば、両方の OS で流す。
 
 ## 4. タグ、push、公開
 
@@ -66,7 +82,8 @@ PowerShell から:
 git tag -a vX.Y.Z -m "MegaProvider X.Y.Z"
 git push origin main
 git push origin vX.Y.Z
-gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file <一時ファイル> artifacts/MegaProvider-X.Y.Z-win-x64.zip
+gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file <一時ファイル> \
+    artifacts/MegaProvider-X.Y.Z-win-x64.zip artifacts/MegaProvider-X.Y.Z-linux-x64.tar.gz
 ```
 
 リリース文は**英語**で、変化の 1〜2 行のあとに導入手順を毎回付ける（一時ファイルはスクラッチパッドに置く）。
@@ -77,7 +94,9 @@ gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file <一時フ�
 ````
 <変化の 1〜2 行>
 
-Windows x64, PowerShell 7.4 or later.
+PowerShell 7.4 or later on Windows x64, or Linux x64 with glibc 2.35 or later.
+
+**Windows**
 
 ```powershell
 $dest = "$HOME\Documents\PowerShell\Modules\MegaProvider\X.Y.Z"
@@ -86,11 +105,21 @@ Get-ChildItem $dest | Unblock-File
 Import-Module MegaProvider
 Connect-MegaAccount
 ```
+
+**Linux**
+
+```powershell
+$dest = "$HOME/.local/share/powershell/Modules/MegaProvider/X.Y.Z"
+New-Item -ItemType Directory -Force $dest | Out-Null
+tar -xzf MegaProvider-X.Y.Z-linux-x64.tar.gz -C $dest
+Import-Module MegaProvider
+Connect-MegaAccount
+```
 ````
 
 ## 5. 報告
 
-リリース URL、zip 名とサイズ、含まれるコミット数を 2〜3 行で。
+リリース URL、配布物 2 つの名前とサイズ、含まれるコミット数を 2〜3 行で。
 
 ## 途中で落ちたとき
 

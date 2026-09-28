@@ -37,8 +37,16 @@ macOS is not supported.
 
 ### Linux
 
-There is no prebuilt package for Linux yet. Build it from source (see
-[Building from source](#building-from-source)) and import the `MegaProvider.psd1` it prints.
+1. Download `MegaProvider-<version>-linux-x64.tar.gz` from the
+   [Releases](https://github.com/tackme31/MegaProvider/releases) page.
+2. Unpack it into your module folder (in `pwsh`):
+
+   ```powershell
+   $version = '<version>'   # e.g. 0.2.0
+   $dest = "$HOME/.local/share/powershell/Modules/MegaProvider/$version"
+   New-Item -ItemType Directory -Force $dest | Out-Null
+   tar -xzf "MegaProvider-$version-linux-x64.tar.gz" -C $dest
+   ```
 
 ### Then
 
@@ -166,7 +174,7 @@ runs short (under WSL, for example), set `$env:CMAKE_BUILD_PARALLEL_LEVEL = 8` b
 
 MegaProvider is licensed under the [MIT License](LICENSE).
 
-The release zip also contains `THIRD-PARTY-NOTICES.txt` for the components linked into
+Each release package also contains `THIRD-PARTY-NOTICES.txt` for the components linked into
 `megaprovider-host`, including the MEGA C++ SDK (BSD 2-Clause), nlohmann/json (MIT) and the
 libraries they depend on.
 

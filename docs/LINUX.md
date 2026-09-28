@@ -134,8 +134,13 @@ OS ごとに実装し、`BackendHost` で選ぶ。
 
 - 形式は `MegaProvider-<version>-linux-x64.tar.gz`。zip だとホストの実行ビットが失われる。
 - 依存ライブラリは vcpkg が静的にリンクする。VC++ ランタイムに当たるものは同梱しない。
+- **libstdc++ と libgcc も静的にリンクする**（`-static-libstdc++ -static-libgcc`、GCC のランタイム例外で可）。
+  そのままだと Ubuntu 22.04 でビルドしたホストは `GLIBCXX_3.4.30`（GCC 12 の libstdc++）を要求し、
+  glibc が足りていても GCC 11 のディストリ（RHEL 9 など）で起動できなかった。いま動的にリンクするのは
+  glibc（`libc`・`libm`・ローダー）だけ。
 - 動くかどうかは glibc の版で決まる。**ビルドする環境の glibc より古いディストリでは動かない**ので、
-  古めの LTS（Ubuntu 22.04 など）でビルドする。
+  古めの LTS（Ubuntu 22.04 など）でビルドする。README は glibc 2.35 以上と約束していて、`package.ps1` が
+  ホストの要求する版を `objdump -T` で調べ、超えていたら失敗する。
 - サードパーティの告知（`vcpkg_installed` から組み立てる部分）は同じ作りで使える。
 - 対象は x64 だけから始める（arm64 は要望があれば。triplet `arm64-linux-mega` はある）。
 
@@ -149,6 +154,8 @@ OS ごとに実装し、`BackendHost` で選ぶ。
 4. **Linux のプリセットでホストをビルドする。** `host-request.ps1` で 1 要求ずつ確かめ、テスト用アカウントで
    `test.ps1 -Live` を流す。（済。`-Live` の 25 件が全部通り、セッションのファイル 0600・フォルダ 0700・
    ソケット 0600 を確かめた）
-5. **スクリプトの OS 分岐と配布**（`dev.ps1`、`test.ps1`、`host-request.ps1`、`package.ps1`）。
-6. **文書**: README（動作環境、インストール）、`docs/HOST.md`（ソケット）、`CLAUDE.md`。
-7. （任意）GitHub Actions の ubuntu で、偽バックエンドのテストとネイティブのビルドを回す。
+5. **スクリプトの OS 分岐と配布**（`dev.ps1`、`test.ps1`、`host-request.ps1`、`package.ps1`）。（済。
+   リリースは `/release` スキルが Windows の zip と Linux の tar.gz を両方載せる）
+6. **文書**: README（動作環境、インストール）、`docs/HOST.md`（ソケット）、`CLAUDE.md`。（済）
+7. （任意）GitHub Actions の ubuntu で、偽バックエンドのテストとネイティブのビルドを回す。（やらない。
+   リリースは手元の `/release` で出している）
