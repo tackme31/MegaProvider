@@ -102,10 +102,7 @@
     止まった項目より前は済み、それ以降は未処理、とメッセージに出る。要求は 1 本ずつ直列に送っている（`HostClient` の lock）。
   - 残り（任意）: 普段の使い方の規模（50 件ほど）の名前変更をテスト用アカウントの砂場で 1 回だけ流し、所要時間を見る。
     件数を増やして繰り返したり、限界を探ったりはしない。
-- **Linux 対応（予定。macOS は対応しない）**: C# のプロバイダと偽バックエンドは OS に依存しない。
-  Windows 専用なのは、セッションの DPAPI（`SessionStore.cs`、Linux では libsecret などに替える）、
-  ホストの Win32 名前付きパイプ（`native/src/host/main.cpp`、Unix ドメインソケットに替える）、
-  native のビルド（VS・v142・`x64-windows-mega` の triplet）、`.exe` 決め打ちのパス（`HostClient.cs`）。
+- **Linux 対応（予定。macOS は対応しない）**: 調査結果と進める順序は `docs/LINUX.md`。
 
 ## 4. 既知の問題（未対応）
 

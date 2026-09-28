@@ -18,7 +18,7 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 - 動くもの: 一覧は `docs/COMMANDS.md`。読み取り・変更系・転送（`Send-` / `Receive-MegaItem`）・
   ゴミ箱からの復元まで動く。
 - 実アカウントでの確認は `mega:\MegaProviderTest` の下で行う（テスト用アカウントの砂場）。
-- いまは Windows 専用。Linux には対応する予定、macOS には対応しない。必要な作業は `docs/COMMANDS.md` の「3.」。
+- いまは Windows 専用。Linux には対応する予定、macOS には対応しない。調査結果と進める順序は `docs/LINUX.md`。
 - **次の一手**: プロダクトとして出すための残り（`docs/COMMANDS.md` の「4.」にあるパイプ名の版）。そのあと「2. 実装しておくとよいもの」。
   既知の問題は同じファイルの「4.」。
 - バックエンドは 2 つあり、`$env:MEGAPROVIDER_BACKEND` で選ぶ（`Backend/BackendHost.cs`）。
@@ -58,6 +58,7 @@ tests/Live.Tests.ps1       テスト用アカウントでの端から端まで�
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
 docs/COMMANDS.md           実装済み・候補のコマンド一覧
 docs/HOST.md               常駐プロセスの設計、ビルド、プロトコル
+docs/LINUX.md              Linux 対応の調査（Windows 依存の箇所、置き換え方、順序）
 ```
 
 MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接ホストを呼ばない。
