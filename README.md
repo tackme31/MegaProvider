@@ -13,6 +13,11 @@ MegaProvider talks to MEGA through the official [MEGA C++ SDK](https://github.co
 runs in a small background process (`megaprovider-host`) so that the file list is loaded once, not
 on every command.
 
+**Note:** This is a personal project, published in case it's useful to someone else, and it's still
+before 1.0, so anything below may change between versions without a compatibility layer — property
+names, cmdlets and parameters included. It isn't affiliated with MEGA Limited and comes with no
+warranty (see [LICENSE](LICENSE)). It changes your real cloud storage, so use it at your own risk.
+
 ## Requirements
 
 - Windows x64, or Linux x64 with glibc 2.35 or later (Ubuntu 22.04 or later, for example)
