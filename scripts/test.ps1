@@ -3,13 +3,10 @@
 #
 #   ./scripts/test.ps1                          # fake backend only (no account)
 #   ./scripts/test.ps1 -Live                    # + the test account through the SDK host
-#   ./scripts/test.ps1 -Live -Backend host, megacmd
 #
 # -Live needs the test account connected (Connect-MegaAccount) and MEGAEXPLORER_TEST_* set (CLAUDE.md).
 param(
     [switch]$Live,
-    [ValidateSet('host', 'megacmd')]
-    [string[]]$Backend = @('host'),
     [switch]$NoBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -40,9 +37,7 @@ exit `$r.FailedCount + `$r.FailedBlocksCount + `$r.FailedContainersCount
 
 $failed = Invoke-Suite 'Fake.Tests.ps1' 'fake' 'fake backend'
 if ($Live) {
-    foreach ($b in $Backend) {
-        $failed += Invoke-Suite 'Live.Tests.ps1' ($b -eq 'host' ? '' : $b) "live: $b"
-    }
+    $failed += Invoke-Suite 'Live.Tests.ps1' '' 'live: SDK host'
 }
 Write-Host "`n$(if ($failed) { "FAILED: $failed" } else { 'All passed.' })" -ForegroundColor ($failed ? 'Red' : 'Green')
 exit $failed

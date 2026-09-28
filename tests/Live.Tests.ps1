@@ -1,12 +1,7 @@
-# End-to-end against the MEGA test account. Run via `scripts/test.ps1 -Live`, which starts one fresh
-# pwsh per backend (MEGAPROVIDER_BACKEND is fixed per process).
+# End-to-end against the MEGA test account through the SDK host. Run via `scripts/test.ps1 -Live`.
 #
 # Safety: nothing runs unless the connected account is MEGAEXPLORER_TEST_ACCOUNT. Everything happens
 # in a new folder under mega:\MegaProviderTest, which goes to the Rubbish Bin at the end.
-
-BeforeDiscovery {
-    $script:isHost = -not $env:MEGAPROVIDER_BACKEND
-}
 
 BeforeAll {
     Import-Module $env:MEGAPROVIDER_PSD1 -Force
@@ -29,6 +24,25 @@ BeforeAll {
     'jpg2' | Set-Content "$local\up\IMG_0002.jpg"
     'nihongo' | Set-Content "$local\up\日本語 ファイル.txt"
     'x' | Set-Content "$local\up\sub\x.txt"
+
+    # Talks to a host directly (docs/HOST.md), for what the module never asks of it.
+    function Invoke-HostRequest([string]$pipeName, [string]$op, [hashtable]$arguments = @{}) {
+        $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', $pipeName, [IO.Pipes.PipeDirection]::InOut, [IO.Pipes.PipeOptions]::Asynchronous)
+        try {
+            $pipe.Connect(10000)
+            $writer = [IO.StreamWriter]::new($pipe); $writer.NewLine = "`n"
+            $reader = [IO.StreamReader]::new($pipe)
+            $writer.WriteLine((@{ id = 0; op = $op; args = $arguments } | ConvertTo-Json -Compress)); $writer.Flush()
+            do {
+                $read = $reader.ReadLineAsync()
+                if (-not $read.Wait([timespan]::FromSeconds(60))) { throw "No reply to '$op' within 60 s." }
+                $reply = $read.Result | ConvertFrom-Json
+            } while ($reply.progress)
+            if (-not $reply.ok) { throw "The host refused '$op': $($reply.error.message)" }
+            $reply.result
+        }
+        finally { $pipe.Dispose() }
+    }
 }
 
 AfterAll {
@@ -105,8 +119,7 @@ Describe 'Renaming' {
         (Rename-Item -LiteralPath "$R\star*q?.txt" -NewName A.txt -PassThru).Name | Should -Be 'A.txt'
     }
 
-    # MEGAcmd reads '*' and '?' in a folder path as wildcards, so that backend refuses this.
-    It 'works inside a folder whose name has wildcard characters' -Skip:(-not $isHost) {
+    It 'works inside a folder whose name has wildcard characters' {
         New-Item "$R\wild*?" -ItemType Directory | Out-Null
         New-Item "$R\wild*?\inner" -ItemType Directory | Out-Null
         (Rename-Item -LiteralPath "$R\wild*?\inner" -NewName 'inner*2' -PassThru).Name | Should -Be 'inner*2'
@@ -149,8 +162,7 @@ Describe 'Folders, moving and the Rubbish Bin' {
     }
 }
 
-# The MEGAcmd backend has no Copy yet (its cp is unmeasured).
-Describe 'Copying' -Skip:(-not $isHost) {
+Describe 'Copying' {
     BeforeAll { New-Item "$R\copies" -ItemType Directory | Out-Null }
 
     It 'copies a file into a folder under its own name, keeping the original' {
@@ -181,7 +193,7 @@ Describe 'Copying' -Skip:(-not $isHost) {
     }
 }
 
-Describe 'The SDK host' -Skip:(-not $isHost) {
+Describe 'The SDK host' {
     It 'comes back by itself after being killed' {
         Get-Process megaprovider-host | Stop-Process -Force
         Start-Sleep -Seconds 3   # past the 2 s listing cache, so the next call reaches the host
@@ -190,20 +202,28 @@ Describe 'The SDK host' -Skip:(-not $isHost) {
     }
 
     # Regression: the host kept claiming the dead session and every call failed until it restarted.
-    It 'recovers when its session is revoked elsewhere' -Skip:(-not (Test-Path "$env:LOCALAPPDATA\MEGAcmd\MEGAclient.exe")) {
+    It 'notices when its session is revoked elsewhere' {
         (Get-ChildItem $R).Name | Should -Contain 'moved'   # the host holds the current session
-        # Through the MEGAcmd backend: logout (kills the session on the server), then a fresh login.
-        pwsh -NoProfile -Command {
-            param($psd1)
-            $env:MEGAPROVIDER_BACKEND = 'megacmd'
-            Import-Module $psd1
-            Disconnect-MegaAccount
-            $password = ConvertTo-SecureString $env:MEGAEXPLORER_TEST_PASSWORD -AsPlainText -Force
-            Connect-MegaAccount -Credential ([pscredential]::new($env:MEGAEXPLORER_TEST_ACCOUNT, $password)) | Out-Null
-        } -args $env:MEGAPROVIDER_PSD1
+        # A second host (its own pipe and data folder) takes the same session and logs it out on the server.
+        $mainPipe = 'megaprovider-host-' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $session = (Invoke-HostRequest $mainPipe status).session
+        $otherPipe = "megaprovider-test-$(Get-Random)"
+        $exe = Join-Path (Split-Path $env:MEGAPROVIDER_PSD1) 'megaprovider-host.exe'
+        Start-Process $exe -WindowStyle Hidden -ArgumentList '--pipe', $otherPipe, '--data', "`"$local\host2`"", '--idle-minutes', '1'
+        Invoke-HostRequest $otherPipe resume @{ session = $session } | Out-Null
+        Invoke-HostRequest $otherPipe logout | Out-Null
+        Invoke-HostRequest $otherPipe shutdown | Out-Null
         Start-Sleep -Seconds 6   # past HostAuth's 5 s verification window
+
+        # The saved session died with it, so the error must say to connect again (not fail on stale state).
+        $messages = try {
+            Get-ChildItem $R -ErrorVariable errs -ErrorAction SilentlyContinue
+            $errs.Exception.Message
+        } catch { $_.Exception.Message }
+        $password = ConvertTo-SecureString $env:MEGAEXPLORER_TEST_PASSWORD -AsPlainText -Force
+        Connect-MegaAccount -Credential ([pscredential]::new($env:MEGAEXPLORER_TEST_ACCOUNT, $password)) | Out-Null
+        $messages -join "`n" | Should -BeLike '*Connect-MegaAccount*'
         (Get-ChildItem $R).Name | Should -Contain 'moved'
-        (Get-MegaAccount).Email | Should -Be $env:MEGAEXPLORER_TEST_ACCOUNT
     }
 
     It 'cancels an upload when the pipeline is stopped (Ctrl+C)' {

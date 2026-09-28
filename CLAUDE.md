@@ -21,11 +21,9 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 - いまは Windows 専用。Linux には対応する予定、macOS には対応しない。必要な作業は `docs/COMMANDS.md` の「3.」。
 - **次の一手**: プロダクトとして出すための残り（`docs/COMMANDS.md` の「4.」にあるパイプ名の版）。そのあと「2. 実装しておくとよいもの」。
   既知の問題は同じファイルの「4.」。
-- バックエンドは 3 つあり、`$env:MEGAPROVIDER_BACKEND` で選ぶ（`Backend/BackendHost.cs`）。
+- バックエンドは 2 つあり、`$env:MEGAPROVIDER_BACKEND` で選ぶ（`Backend/BackendHost.cs`）。
   - 既定: **SDK の常駐プロセス**（`native/`、`megaprovider-host.exe`）。MegaExplorer の `IMegaClient` を
     コピーして Qt を外したものに、名前付きパイプで JSON を返す口を付けた。設計とプロトコルは `docs/HOST.md`。
-  - `megacmd`: MEGAcmd を裏で呼ぶ最初の実装。比較用・予備として残している。実測した挙動は
-    `docs/MEGACMD.md`。そこに無いことは実物で確認すること — 記憶で解析器を書かない。
   - `fake`: メモリ上の木。アカウント不要。転送はできない。
 - **認証の方針（決定済み）**:
   - `Connect-MegaAccount` でログインし、セッションを自前のファイルに保存する。その後は `mega:` を
@@ -48,7 +46,6 @@ src/MegaProvider/
   Backend/FakeBackend.cs   メモリ上の偽物。同名の兄弟（dup.txt ×2）をわざと含む
   Backend/SessionStore.cs  セッションの保存（%LOCALAPPDATA%\MegaProvider\session.dat、DPAPI）
   Backend/Host/            megaprovider-host.exe とパイプで話す実装（既定）
-  Backend/MegaCmd/         MEGAclient.exe を呼ぶ実装
   MegaProvider.psd1        モジュールマニフェスト（ビルド出力へコピーされる）
 native/                    megaprovider-host（C++、CMake + vcpkg）。src/core・src/mega は MegaExplorer からのコピー
   third_party/sdk, vcpkg   submodule（MegaExplorer と同じコミット）
@@ -59,12 +56,11 @@ scripts/package.ps1        Release ビルド → artifacts/ に配布用 zip →
 tests/Fake.Tests.ps1       偽バックエンドのテスト（アカウント不要）
 tests/Live.Tests.ps1       テスト用アカウントでの端から端までのテスト
 docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名の参照用）
-docs/MEGACMD.md            MEGAcmd の実測メモ（認証、出力形式、終了コード）
 docs/COMMANDS.md           実装済み・候補のコマンド一覧
 docs/HOST.md               常駐プロセスの設計、ビルド、プロトコル
 ```
 
-MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接ホストや MEGAcmd を呼ばない。
+MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接ホストを呼ばない。
 
 ## ビルドと実行
 
@@ -94,11 +90,7 @@ dotnet build                     # MegaProvider.sln
 ```powershell
 ./scripts/test.ps1                                # 偽バックエンドだけ（アカウント不要、数秒）
 ./scripts/test.ps1 -Live                          # + テスト用アカウントで SDK のホスト（1 分ほど）
-./scripts/test.ps1 -Live -Backend host,megacmd    # MEGAcmd でも同じテストを流す
 ```
-
-複数のバックエンドを渡すときは `pwsh -Command "& ./scripts/test.ps1 ..."` で呼ぶ（`pwsh -File` だと
-`host,megacmd` が 1 つの文字列のまま渡って ValidateSet に弾かれる）。
 
 - Pester 5.5 以上（`Install-Module Pester -Scope CurrentUser`）。Windows 同梱の 3.4 では動かない。
 - バックエンドはプロセスごとに固定なので、`test.ps1` はスイートごとに新しい pwsh を立てる。
@@ -159,9 +151,9 @@ dotnet build                     # MegaProvider.sln
   パスワードはリポジトリ内のファイルには絶対に書かない。
 - テスト用アカウントへのログインは Claude が上の環境変数を使って行ってよい。パスワードは必ず
   変数参照（`"$MEGAEXPLORER_TEST_PASSWORD"`）で渡し、値を表示・ログ出力・ファイル化しない。
-  `session` が出すトークンも秘密として扱い、表示しない。
+  ホストの `status` が返すセッショントークンも秘密として扱い、表示しない。
 - このモジュールのセッションは MegaExplorer とは独立している。操作の前に `Get-MegaAccount`
-  （MEGAcmd を直接叩くときは `whoami`）でテスト用アカウントと照合する。
+  でテスト用アカウントと照合する。
 
 ## ライセンス
 
