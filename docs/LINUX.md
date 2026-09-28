@@ -21,7 +21,7 @@
 | 箇所 | Windows 依存 | Linux での置き換え |
 |---|---|---|
 | `Backend/BackendHost.cs` | Windows 以外では起動を拒否する | fake と host を通す |
-| `Backend/SessionStore.cs` | DPAPI（`ProtectedData`） | 未決（下の「セッションの保存」） |
+| `Backend/SessionStore.cs` | DPAPI（`ProtectedData`） | 0700 のディレクトリの中の 0600 のファイル（下の「セッションの保存」） |
 | `Backend/Host/HostClient.cs` | パイプ名にユーザーの SID（`WindowsIdentity`）、`megaprovider-host.exe` 決め打ち、`UseShellExecute = true` での起動 | ソケットのパス、拡張子なし、`UseShellExecute = false`（下の「ホストの起動」） |
 | `HostAuth.cs`・`HostBackend.cs`・`HostClient.cs`・`SessionStore.cs` | `[SupportedOSPlatform("windows")]` | 外す、または OS ごとに分ける |
 | `native/src/host/main.cpp` | `wmain`・`_wtoi`、`CreateNamedPipeW` と SDDL の DACL、`"\\"` を足した SDK のパス、`SetErrorMode`、`ExitProcess` | `main`、Unix ドメインソケット、`/`、`_exit` |
@@ -60,9 +60,9 @@ Windows の名前付きパイプを Unix ドメインソケットに替える。
   端末を閉じたときの SIGHUP でホストが道連れにならない効果もある。
 - .NET が自分で開くファイル記述子には CLOEXEC が付くので、0/1/2 以外は継承されない見込み（**要確認**）。
 
-## セッションの保存（未決）
+## セッションの保存（決定: 0600 のファイル）
 
-`CLAUDE.md` の認証の方針は「DPAPI で暗号化したファイル」。Linux ではどれかを選ぶ必要がある。
+Windows は DPAPI で暗号化したファイル。Linux では次の 3 つを比べ、1 に決めた（2026-09-28）。
 
 1. **0600 のファイル**（`~/.local/share/MegaProvider/session.dat`）。依存が無く、WSL・SSH 先・ヘッドレスの
    サーバーでも動く。守りはファイルのパーミッションだけ。
@@ -80,7 +80,7 @@ MEGAsync のコードは制限的なライセンスなので、読んで仕組�
   なので、実質は難読化だけ。ファイルのパーミッションを明示的に設定しているコードは見当たらない。
 - **MEGAcmd**: 設定ディレクトリの `session` にトークンを平文で書く。ディレクトリは作るときに 0700 にしている。
 
-→ **1（0700 のディレクトリの中の 0600 のファイル）を推奨する**。MEGAcmd と同じ守り方で、MEGAsync の
+→ **1（0700 のディレクトリの中の 0600 のファイル）にする**。MEGAcmd と同じ守り方で、MEGAsync の
 固定鍵の XOR は守りにならないので真似しない。どれにしても `SessionStore` はインターフェースにして
 OS ごとに実装し、`BackendHost` で選ぶ。
 

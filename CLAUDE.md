@@ -29,6 +29,8 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
   - `Connect-MegaAccount` でログインし、セッションを自前のファイルに保存する。その後は `mega:` を
     自由に使える。形式は MegaExplorer にならう（セッショントークンを DPAPI で暗号化）が、
     **ファイルは MegaExplorer と共有しない**（完全に別プロジェクト）。
+  - Linux では DPAPI の代わりに、0700 のディレクトリの中の 0600 のファイルに保存する（MEGAcmd と同じ守り方。
+    理由は `docs/LINUX.md`）。
   - 同時に扱えるアカウントは 1 つだけ。`Connect` し直したら差し替える。
   - 2FA（認証アプリのコード）は `Connect-MegaAccount -AuthCode`、または省略時にその場で尋ねる。
     2026-09-28 にユーザーが 2FA のアカウントで確認済み。
