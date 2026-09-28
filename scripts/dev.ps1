@@ -13,8 +13,7 @@ $root = Split-Path $PSScriptRoot -Parent
 
 # The running host holds megaprovider-host.exe open in the module output, so the copy would fail.
 function Stop-Host {
-    $name = 'megaprovider-host-' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-    $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', $name, [IO.Pipes.PipeDirection]::InOut)
+    $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', (& "$PSScriptRoot/Get-HostPipeName.ps1"), [IO.Pipes.PipeDirection]::InOut)
     try { $pipe.Connect(200) } catch [TimeoutException] { return }
     try {
         $writer = [IO.StreamWriter]::new($pipe); $writer.NewLine = "`n"

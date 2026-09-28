@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using System.Text.Json.Nodes;
 
 namespace MegaProvider.Backend.Host;
@@ -7,7 +6,6 @@ namespace MegaProvider.Backend.Host;
 /// Everything is addressed by handle; the host keeps the node tree in memory, so a listing is
 /// one sub-millisecond pipe round trip.
 /// </summary>
-[SupportedOSPlatform("windows")]
 internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBackend
 {
     private static readonly MegaItem Root = new("", "", true, 0, DateTime.MinValue);

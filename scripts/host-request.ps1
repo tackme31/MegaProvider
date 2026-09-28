@@ -13,7 +13,7 @@ param(
     [int]$TimeoutSeconds = 30
 )
 $ErrorActionPreference = 'Stop'
-$name = 'megaprovider-host-' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$name = & "$PSScriptRoot/Get-HostPipeName.ps1"
 $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', $name, [IO.Pipes.PipeDirection]::InOut, [IO.Pipes.PipeOptions]::Asynchronous)
 try { $pipe.Connect(2000) } catch [TimeoutException] { throw 'The host is not running. Run any mega: command first.' }
 try {

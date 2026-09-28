@@ -1,20 +1,21 @@
-// megaprovider-host: owns one MegaApi and serves the PowerShell provider over a named pipe.
+// megaprovider-host: owns one MegaApi and serves the PowerShell provider over a named pipe
+// (Windows) or a Unix domain socket (elsewhere).
 //
-//   megaprovider-host.exe --pipe <name> --data <dir> [--idle-minutes <n>]
+//   megaprovider-host --pipe <name or socket path> --data <dir> [--idle-minutes <n>]
 //
 // Started on demand by the module. One process per pipe name: a second copy finds the
 // pipe taken and exits. It exits by itself after --idle-minutes with no client connected.
 // Protocol: docs/HOST.md.
+#include "Platform.h"
 #include "Service.h"
 #include "app/Logging.h"
 #include "mega/MegaSdkClient.h"
 
-#include <windows.h>
-#include <sddl.h>
-
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <thread>
@@ -44,51 +45,24 @@ void requestStop()
     gStopWake.notify_all();
 }
 
-std::string toUtf8(const std::wstring& w)
+// Paths go through char8_t: a plain std::string would be read in the ANSI code page on Windows.
+std::filesystem::path pathFromUtf8(const std::string& s)
 {
-    if (w.empty())
-        return {};
-    const int n = WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), nullptr, 0, nullptr, nullptr);
-    std::string s(static_cast<std::size_t>(n), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, w.data(), static_cast<int>(w.size()), s.data(), n, nullptr, nullptr);
-    return s;
+    return std::filesystem::path(std::u8string(s.begin(), s.end()));
 }
 
-// The pipe carries the whole account (it can log in, read and delete), so only the
-// user running the host may open it. The default pipe DACL would also let Everyone read.
-PSECURITY_DESCRIPTOR ownerOnlySecurityDescriptor()
+std::string utf8(const std::filesystem::path& p)
 {
-    HANDLE token = nullptr;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
-        return nullptr;
-    DWORD length = 0;
-    GetTokenInformation(token, TokenUser, nullptr, 0, &length);
-    std::vector<BYTE> buffer(length);
-    PSECURITY_DESCRIPTOR sd = nullptr;
-    LPWSTR sid = nullptr;
-    if (GetTokenInformation(token, TokenUser, buffer.data(), length, &length)
-        && ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(buffer.data())->User.Sid, &sid))
-    {
-        const std::wstring sddl = L"D:P(A;;GA;;;" + std::wstring(sid) + L")";
-        ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &sd, nullptr);
-        LocalFree(sid);
-    }
-    CloseHandle(token);
-    return sd;
+    const std::u8string s = p.u8string();
+    return std::string(s.begin(), s.end());
 }
 
-class Connection
+// One JSON document per line, UTF-8, over a Connection.
+class LineChannel
 {
 public:
-    explicit Connection(HANDLE pipe) : mPipe(pipe) {}
-    ~Connection()
-    {
-        FlushFileBuffers(mPipe);
-        DisconnectNamedPipe(mPipe);
-        CloseHandle(mPipe);
-    }
+    explicit LineChannel(std::unique_ptr<Connection> connection) : mConnection(std::move(connection)) {}
 
-    // One JSON document per line, UTF-8.
     bool readLine(std::string& line)
     {
         for (;;)
@@ -103,10 +77,10 @@ public:
                 return true;
             }
             char chunk[4096];
-            DWORD read = 0;
-            if (!ReadFile(mPipe, chunk, sizeof chunk, &read, nullptr) || read == 0)
+            std::size_t received = 0;
+            if (!mConnection->read(chunk, sizeof chunk, received))
                 return false;
-            mBuffer.append(chunk, read);
+            mBuffer.append(chunk, received);
         }
     }
 
@@ -117,27 +91,25 @@ public:
         std::lock_guard<std::mutex> lock(mWriteMutex);
         if (mBroken)
             return false;
-        DWORD written = 0;
-        if (!WriteFile(mPipe, text.data(), static_cast<DWORD>(text.size()), &written, nullptr)
-            || written != text.size())
+        if (!mConnection->write(text.data(), text.size()))
             mBroken = true;
         return !mBroken;
     }
 
 private:
-    HANDLE mPipe;
+    std::unique_ptr<Connection> mConnection;
     std::string mBuffer;
     std::mutex mWriteMutex;
     bool mBroken = false;
 };
 
-void serve(HANDLE pipe, Service& service)
+void serve(std::unique_ptr<Connection> connection, Service& service)
 {
     ++gActiveConnections;
     {
-        Connection connection(pipe);
+        LineChannel channel(std::move(connection));
         std::string line;
-        while (connection.readLine(line))
+        while (channel.readLine(line))
         {
             gLastActivity = nowSeconds();
             Json request;
@@ -148,18 +120,18 @@ void serve(HANDLE pipe, Service& service)
             }
             catch (const Json::parse_error& e)
             {
-                connection.writeLine({{"id", nullptr}, {"ok", false}, {"error", {{"code", 1}, {"message", e.what()}}}});
+                channel.writeLine({{"id", nullptr}, {"ok", false}, {"error", {{"code", 1}, {"message", e.what()}}}});
                 continue;
             }
             const Json id = request.is_object() ? request.value("id", Json(nullptr)) : Json(nullptr);
             const Emit emit = [&](const Json& partial) {
                 Json message = partial;
                 message["id"] = id;
-                return connection.writeLine(message);
+                return channel.writeLine(message);
             };
             response = service.handle(request, emit);
             response["id"] = id;
-            connection.writeLine(response);
+            channel.writeLine(response);
             if (service.stopRequested())
                 requestStop();
         }
@@ -168,85 +140,52 @@ void serve(HANDLE pipe, Service& service)
     --gActiveConnections;
 }
 
-void acceptLoop(const std::wstring& pipeName, Service& service, PSECURITY_DESCRIPTOR sd)
+int run(const std::vector<std::string>& args)
 {
-    SECURITY_ATTRIBUTES sa{sizeof sa, sd, FALSE};
-    bool first = true;
-    for (;;)
-    {
-        const HANDLE pipe = CreateNamedPipeW(pipeName.c_str(),
-                                             PIPE_ACCESS_DUPLEX | (first ? FILE_FLAG_FIRST_PIPE_INSTANCE : 0),
-                                             PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-                                             PIPE_UNLIMITED_INSTANCES, 64 * 1024, 64 * 1024, 0, &sa);
-        if (pipe == INVALID_HANDLE_VALUE)
-        {
-            const DWORD error = GetLastError();
-            if (first)
-            {
-                // ERROR_ACCESS_DENIED here means another host already owns the name.
-                LOG_INFO("host") << "cannot create pipe, error" << error << "- another host is running?";
-                requestStop();
-                return;
-            }
-            LOG_WARN("host") << "CreateNamedPipe failed, error" << error;
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            continue;
-        }
-        first = false;
-        if (!ConnectNamedPipe(pipe, nullptr) && GetLastError() != ERROR_PIPE_CONNECTED)
-        {
-            CloseHandle(pipe);
-            continue;
-        }
-        std::thread([pipe, &service] { serve(pipe, service); }).detach();
-    }
-}
-
-} // namespace
-
-int wmain(int argc, wchar_t** argv)
-{
-    // No crash dialog: nobody is looking at this process.
-    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-
-    std::wstring pipeName;
-    std::wstring dataDir;
+    std::string pipeName;
+    std::string dataDir;
     int idleMinutes = 60;
-    for (int i = 1; i + 1 < argc; i += 2)
+    for (std::size_t i = 0; i + 1 < args.size(); i += 2)
     {
-        const std::wstring key = argv[i];
-        if (key == L"--pipe")
-            pipeName = L"\\\\.\\pipe\\" + std::wstring(argv[i + 1]);
-        else if (key == L"--data")
-            dataDir = argv[i + 1];
-        else if (key == L"--idle-minutes")
-            idleMinutes = _wtoi(argv[i + 1]);
+        if (args[i] == "--pipe")
+            pipeName = args[i + 1];
+        else if (args[i] == "--data")
+            dataDir = args[i + 1];
+        else if (args[i] == "--idle-minutes")
+            idleMinutes = std::atoi(args[i + 1].c_str());
     }
     if (pipeName.empty() || dataDir.empty())
     {
-        std::fwprintf(stderr, L"usage: megaprovider-host --pipe <name> --data <dir> [--idle-minutes <n>]\n");
+        std::fprintf(stderr, "usage: megaprovider-host --pipe <name> --data <dir> [--idle-minutes <n>]\n");
         return 2;
     }
-
-    const std::filesystem::path data(dataDir);
-    std::filesystem::create_directories(data / "sdk");
-    logInit(toUtf8((data / "host.log").wstring()), LogLevel::Info);
-
-    PSECURITY_DESCRIPTOR sd = ownerOnlySecurityDescriptor();
-    if (!sd)
-    {
-        LOG_WARN("host") << "could not build the pipe's security descriptor; refusing to start";
+    // First of all: a second host must leave without touching the first one's log (which
+    // logInit truncates) or node cache. Until logInit, the log goes to stderr.
+    std::unique_ptr<Listener> listener = Listener::open(pipeName);
+    if (!listener)
         return 1;
-    }
+    detachFromStarter();
+
+    const std::filesystem::path data = pathFromUtf8(dataDir);
+    std::filesystem::create_directories(data / "sdk");
+    logInit(utf8(data / "host.log"), LogLevel::Info);
 
     // Absolute and fixed: the SDK keeps its node cache there, and missing it means
-    // downloading the whole tree again on the next login.
-    MegaSdkClient client(toUtf8((data / "sdk").wstring()) + "\\", "MegaProvider/0.1");
+    // downloading the whole tree again on the next login. The SDK wants the trailing separator.
+    MegaSdkClient client(utf8(data / "sdk") + static_cast<char>(std::filesystem::path::preferred_separator),
+                         "MegaProvider/0.1");
     Service service(client);
     gLastActivity = nowSeconds();
-    LOG_INFO("host") << "started, pid" << GetCurrentProcessId();
+    LOG_INFO("host") << "started, pid" << currentProcessId();
 
-    std::thread([&] { acceptLoop(pipeName, service, sd); }).detach();
+    std::thread([&] {
+        for (;;)
+            if (auto connection = listener->accept())
+                std::thread(
+                    [&service](std::unique_ptr<Connection> c) { serve(std::move(c), service); },
+                    std::move(connection))
+                    .detach();
+    }).detach();
 
     {
         std::unique_lock<std::mutex> lock(gStopMutex);
@@ -263,6 +202,23 @@ int wmain(int argc, wchar_t** argv)
 
     LOG_INFO("host") << "stopping";
     client.shutdown();
-    // Connection threads are detached and may be blocked in ReadFile; don't wait for them.
-    ExitProcess(0);
+    // Connection threads are detached and may be blocked in a read; don't wait for them.
+    std::_Exit(0);
 }
+
+} // namespace
+
+#ifdef _WIN32
+int wmain(int argc, wchar_t** argv)
+{
+    std::vector<std::string> args;
+    for (int i = 1; i < argc; ++i)
+        args.push_back(utf8(std::filesystem::path(argv[i])));
+    return run(args);
+}
+#else
+int main(int argc, char** argv)
+{
+    return run(std::vector<std::string>(argv + 1, argv + argc));
+}
+#endif

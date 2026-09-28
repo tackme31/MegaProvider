@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO.Pipes;
-using System.Runtime.Versioning;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
@@ -9,10 +8,10 @@ using System.Text.Json.Nodes;
 namespace MegaProvider.Backend.Host;
 
 /// <summary>
-/// Talks to megaprovider-host.exe over a per-user named pipe, starting it when nobody answers.
+/// Talks to megaprovider-host over a per-user named pipe (a Unix domain socket outside Windows),
+/// starting it when nobody answers.
 /// One JSON object per line each way; the protocol is in docs/HOST.md.
 /// </summary>
-[SupportedOSPlatform("windows")]
 internal sealed class HostClient
 {
     public const int CodeNotLoggedIn = 2;
@@ -28,13 +27,22 @@ internal sealed class HostClient
     private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(20);
 
     private static readonly string ExePath = Path.Combine(
-        Path.GetDirectoryName(typeof(HostClient).Assembly.Location)!, "megaprovider-host.exe");
+        Path.GetDirectoryName(typeof(HostClient).Assembly.Location)!,
+        OperatingSystem.IsWindows() ? "megaprovider-host.exe" : "megaprovider-host");
 
     private static readonly string DataDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MegaProvider", "host");
 
-    // Per user: the host serves exactly one Windows account, and its pipe admits only that user.
-    public static readonly string PipeName = "megaprovider-host-" + WindowsIdentity.GetCurrent().User!.Value;
+    // Per user, and only that user can connect: on Windows a pipe named after the SID (the host
+    // restricts its DACL); elsewhere a socket in a folder only the user can enter. Outside Windows
+    // .NET takes an absolute pipe name as the socket path. scripts/Get-HostPipeName.ps1 mirrors this.
+    public static readonly string PipeName = OperatingSystem.IsWindows()
+        ? "megaprovider-host-" + WindowsIdentity.GetCurrent().User!.Value
+        : Path.Combine(
+            Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") is { Length: > 0 } runtime
+                ? Path.Combine(runtime, "megaprovider")
+                : DataDir,
+            "host.sock");
 
     private readonly object _gate = new();
     private NamedPipeClientStream? _pipe;
@@ -157,10 +165,13 @@ internal sealed class HostClient
     {
         if (!File.Exists(ExePath))
             throw new InvalidOperationException($"The MEGA host is missing ('{ExePath}'). Build native/ first (scripts/dev.ps1).");
-        Directory.CreateDirectory(DataDir);
-        // Through the shell so it inherits none of our handles: with UseShellExecute=false it would
-        // hold this pwsh's redirected stdout open for its whole life, and `pwsh ... | sed` would never end.
-        var psi = new ProcessStartInfo(ExePath) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden };
+        PrivateFiles.CreateDirectory(DataDir); // the SDK's node cache goes here
+        // On Windows through the shell so it inherits none of our handles: with UseShellExecute=false it
+        // would hold this pwsh's redirected stdout open for its whole life, and `pwsh ... | sed` would
+        // never end. Elsewhere UseShellExecute means xdg-open; the host drops inherited stdio itself.
+        var psi = OperatingSystem.IsWindows()
+            ? new ProcessStartInfo(ExePath) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden }
+            : new ProcessStartInfo(ExePath) { UseShellExecute = false };
         foreach (var a in new[] { "--pipe", PipeName, "--data", DataDir })
             psi.ArgumentList.Add(a);
         // Not waited on or killed: it outlives this PowerShell so the next one finds the nodes already loaded.

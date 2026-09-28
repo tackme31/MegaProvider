@@ -26,8 +26,8 @@ internal static class BackendHost
         // A leftover "megacmd" (that backend is gone) must not silently act on the real account.
         if (!string.IsNullOrEmpty(choice))
             throw new NotSupportedException($"Unknown MEGAPROVIDER_BACKEND '{choice}'. Leave it unset, or use 'fake'.");
-        if (!OperatingSystem.IsWindows())
-            throw new PlatformNotSupportedException("MegaProvider currently supports Windows only.");
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
+            throw new PlatformNotSupportedException("MegaProvider supports Windows and Linux.");
         var client = new HostClient();
         var auth = new HostAuth(client);
         return (new HostBackend(client, auth), auth);

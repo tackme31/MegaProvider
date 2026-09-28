@@ -205,7 +205,7 @@ Describe 'The SDK host' {
     It 'notices when its session is revoked elsewhere' {
         (Get-ChildItem $R).Name | Should -Contain 'moved'   # the host holds the current session
         # A second host (its own pipe and data folder) takes the same session and logs it out on the server.
-        $mainPipe = 'megaprovider-host-' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $mainPipe = & "$PSScriptRoot/../scripts/Get-HostPipeName.ps1"
         $session = (Invoke-HostRequest $mainPipe status).session
         $otherPipe = "megaprovider-test-$(Get-Random)"
         $exe = Join-Path (Split-Path $env:MEGAPROVIDER_PSD1) 'megaprovider-host.exe'

@@ -126,11 +126,11 @@ OS ごとに実装し、`BackendHost` で選ぶ。
 
 ## 進める順序
 
-1. **Windows のまま進める下準備。** Windows のテスト（`-Live` も）で退行がないことを確かめながら進める。
+1. **Windows のまま進める下準備。** Windows のテスト（`-Live` も）で退行がないことを確かめながら進める。（済）
    - `main.cpp` の通信部分を分け、`CMakeLists.txt` に `if(WIN32)` を入れる。
    - `HostClient` の名前・パス・起動方法、`SessionStore`、`BackendHost` を OS で切り替える。
-2. **Linux の開発環境**（WSL2 の Ubuntu など）: .NET SDK 8、pwsh 7.4 以上、Pester 5.5 以上、ビルドの依存を揃える。
-3. **偽バックエンドのテストを Linux で流す。** ネイティブは不要。パスの問題が出るならここ。
+2. **Linux の開発環境**（WSL2 の Ubuntu など）: .NET SDK 8、pwsh 7.4 以上、Pester 5.5 以上、ビルドの依存を揃える。（済）
+3. **偽バックエンドのテストを Linux で流す。** ネイティブは不要。パスの問題が出るならここ。（済）
 4. **Linux のプリセットでホストをビルドする。** `host-request.ps1` で 1 要求ずつ確かめ、テスト用アカウントで
    `test.ps1 -Live` を流す。
 5. **スクリプトの OS 分岐と配布**（`dev.ps1`、`test.ps1`、`host-request.ps1`、`package.ps1`）。

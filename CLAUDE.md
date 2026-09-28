@@ -46,14 +46,17 @@ src/MegaProvider/
   Backend/IMegaBackend.cs  バックエンドと認証の境界。パスは '/' 区切りでルート相対（"" がルート）
   Backend/BackendHost.cs   実装を選ぶ唯一の場所（差し替えるときはここだけ変える）
   Backend/FakeBackend.cs   メモリ上の偽物。同名の兄弟（dup.txt ×2）をわざと含む
-  Backend/SessionStore.cs  セッションの保存（%LOCALAPPDATA%\MegaProvider\session.dat、DPAPI）
+  Backend/SessionStore.cs  セッションの保存（%LOCALAPPDATA%\MegaProvider\session.dat。Windows は DPAPI）
+  Backend/PrivateFiles.cs  本人だけが開けるフォルダ・ファイル（Linux では 0700 / 0600）
   Backend/Host/            megaprovider-host.exe とパイプで話す実装（既定）
   MegaProvider.psd1        モジュールマニフェスト（ビルド出力へコピーされる）
 native/                    megaprovider-host（C++、CMake + vcpkg）。src/core・src/mega は MegaExplorer からのコピー
+  src/host/Platform_*.cpp  OS ごとの部分（Windows の名前付きパイプ / Unix ドメインソケット）
   third_party/sdk, vcpkg   submodule（MegaExplorer と同じコミット）
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
 scripts/test.ps1           ビルドして Pester を流す（スイートごとに新しい pwsh）
 scripts/host-request.ps1   動いているホストへ要求を 1 つ送って応答を見る（プロトコルのデバッグ用）
+scripts/Get-HostPipeName.ps1  ホストの接続先（HostClient.PipeName と同じもの）を返す
 scripts/package.ps1        Release ビルド → artifacts/ に配布用 zip → 展開して読み込めるか確認。リリースは /release スキル
 tests/Fake.Tests.ps1       偽バックエンドのテスト（アカウント不要）
 tests/Live.Tests.ps1       テスト用アカウントでの端から端までのテスト

@@ -45,6 +45,9 @@
   継承し、リダイレクトされた標準出力を握り続けるので、`pwsh -File x.ps1 | sed` のようなパイプラインが
   ホストが終わるまで終わらなくなる（実際に固まった）。
 - 同じパイプ名で 2 つ目が起動しても、パイプを作れずにすぐ終わる（`FILE_FLAG_FIRST_PIPE_INSTANCE`）。
+  パイプを開くのはログや SDK より先なので、2 つ目は 1 つ目のログ（開くと空になる）にもノードキャッシュにも触れない。
+- OS ごとに違うのは `native/src/host/Platform_win.cpp` / `Platform_unix.cpp`（待ち受け、1 接続の読み書き、起動元からの
+  切り離し）だけ。Linux での置き換え方は `docs/LINUX.md`。接続先の名前はスクリプトからは `scripts/Get-HostPipeName.ps1` で得る。
 - 接続がない状態が 60 分続くと自分で終わる（`--idle-minutes`）。
 - ログは `%LOCALAPPDATA%\MegaProvider\host\host.log`（起動のたびに上書き）。
 - パイプには起動したユーザーしかつながれない（DACL をそのユーザーの SID だけにしている。既定の

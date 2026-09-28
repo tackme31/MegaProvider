@@ -1,14 +1,13 @@
-using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace MegaProvider.Backend;
 
 /// <summary>
-/// The session token, DPAPI-encrypted for the current user, as MegaExplorer does it.
-/// Deliberately a different file from MegaExplorer's: the two projects never share a login.
+/// The session token of the current user. On Windows DPAPI-encrypted, as MegaExplorer (and MEGAsync)
+/// do it. Elsewhere a plain file only the user can read, as MEGAcmd does it; MEGAsync only obfuscates
+/// it there with a fixed key (docs/LINUX.md). Deliberately a different file from MegaExplorer's.
 /// </summary>
-[SupportedOSPlatform("windows")]
 internal static class SessionStore
 {
     private static readonly string FilePath = Path.Combine(
@@ -20,15 +19,18 @@ internal static class SessionStore
     public static string? Load()
     {
         if (!File.Exists(FilePath)) return null;
-        var plain = ProtectedData.Unprotect(File.ReadAllBytes(FilePath), Entropy, DataProtectionScope.CurrentUser);
-        return Encoding.UTF8.GetString(plain);
+        var bytes = File.ReadAllBytes(FilePath);
+        if (OperatingSystem.IsWindows())
+            bytes = ProtectedData.Unprotect(bytes, Entropy, DataProtectionScope.CurrentUser);
+        return Encoding.UTF8.GetString(bytes);
     }
 
     public static void Save(string token)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-        var cipher = ProtectedData.Protect(Encoding.UTF8.GetBytes(token), Entropy, DataProtectionScope.CurrentUser);
-        File.WriteAllBytes(FilePath, cipher);
+        var bytes = Encoding.UTF8.GetBytes(token);
+        if (OperatingSystem.IsWindows())
+            bytes = ProtectedData.Protect(bytes, Entropy, DataProtectionScope.CurrentUser);
+        PrivateFiles.WriteAllBytes(FilePath, bytes);
     }
 
     public static void Clear()

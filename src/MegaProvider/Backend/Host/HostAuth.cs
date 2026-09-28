@@ -1,4 +1,3 @@
-using System.Runtime.Versioning;
 using System.Text.Json.Nodes;
 
 namespace MegaProvider.Backend.Host;
@@ -7,7 +6,6 @@ namespace MegaProvider.Backend.Host;
 /// The session file stays the source of truth: the host keeps its login only in memory,
 /// so after it restarts (idle exit, crash, rebuild) we hand it the saved session again.
 /// </summary>
-[SupportedOSPlatform("windows")]
 internal sealed class HostAuth(HostClient client) : IMegaAuth
 {
     // Checking costs one pipe round trip, so this only spares a burst of provider calls.
