@@ -91,8 +91,19 @@ gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file <一時フ�
 "First release." 程度）。内部の変更しかなければ "Minor fixes and internal changes."。
 `--draft` / `--prerelease` は指示されたときだけ。
 
+**破壊的変更があれば `### Breaking changes` を立てて 1 つずつ列挙する。** 1.0 までは互換性を
+保たない（README の Note）ので、その代わりにここで必ず知らせる。前のタグからの差分
+（`git diff vA.B.C..HEAD -- src/ README.md`）を見て、今までのスクリプトが動かなくなる・結果が
+変わるものを拾う: cmdlet・パラメーター・プロパティの改名や削除、出力の型や値の変化（`$null` と 0 など）、
+既定の動作の変化、セッションなど保存しているファイルの形式、要求環境（PowerShell や glibc の版）。
+各項目は「何が変わったか」と「どう書き換えればよいか」を 1 行で。無ければ節ごと省く。
+
 ````
 <変化の 1〜2 行>
+
+### Breaking changes
+
+- `<何が変わったか>` — <どう書き換えればよいか>
 
 PowerShell 7.4 or later on Windows x64, or Linux x64 with glibc 2.35 or later.
 
