@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileInfo's names, so scripts written for the file system work on mega: as they are.
+     Without Length, $_.Length silently reads PowerShell's intrinsic 1 instead of failing. -->
+<Types>
+  <Type>
+    <Name>MegaProvider.Backend.MegaItem</Name>
+    <Members>
+      <!-- $null for folders, as DirectoryInfo has no Length. -->
+      <ScriptProperty>
+        <Name>Length</Name>
+        <GetScriptBlock>if (-not $this.IsFolder) { $this.Size }</GetScriptBlock>
+      </ScriptProperty>
+      <!-- For folders this is the creation time: MEGA keeps no modification time for them. -->
+      <AliasProperty>
+        <Name>LastWriteTime</Name>
+        <ReferencedMemberName>Modified</ReferencedMemberName>
+      </AliasProperty>
+      <ScriptProperty>
+        <Name>Mode</Name>
+        <GetScriptBlock>if ($this.IsFolder) { 'd' } else { '-' }</GetScriptBlock>
+      </ScriptProperty>
+    </Members>
+  </Type>
+</Types>

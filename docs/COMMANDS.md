@@ -31,7 +31,7 @@
 | コマンド | 偽 | 備考 |
 |---|---|---|
 | `Set-Location`（`cd`） | ✅ | 大文字と小文字の違いは吸収する |
-| `Get-ChildItem`（`ls`） | ✅ | `-Recurse`、`-Filter`、`-Name`、`-File`、`-Directory` に対応。表示はファイルシステムと同じ並び（`.format.ps1xml`） |
+| `Get-ChildItem`（`ls`） | ✅ | `-Recurse`、`-Filter`、`-Name`、`-File`、`-Directory` に対応。表示はファイルシステムと同じ並び（`.format.ps1xml`）。`Length`・`LastWriteTime`・`Mode` もファイルシステムと同じ名前で使える（`.types.ps1xml`。フォルダの `Length` は `$null`、`LastWriteTime` は作成日時） |
 | `Get-Item` | ✅ | |
 | `Test-Path` | ✅ | |
 | タブ補完 | ✅ | |

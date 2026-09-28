@@ -48,11 +48,11 @@ $stage = Join-Path $artifacts 'MegaProvider'
 Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
 
-foreach ($name in 'MegaProvider.psd1', 'MegaProvider.dll', 'MegaProvider.format.ps1xml', $hostName) {
+foreach ($name in 'MegaProvider.psd1', 'MegaProvider.dll', 'MegaProvider.format.ps1xml', 'MegaProvider.types.ps1xml', $hostName) {
     Copy-Item (Join-Path $outDir $name) $stage
 }
 Copy-Item (Join-Path $root 'LICENSE') $stage
-$required = @('MegaProvider.psd1', 'MegaProvider.dll', 'MegaProvider.format.ps1xml', $hostName, 'LICENSE', 'THIRD-PARTY-NOTICES.txt')
+$required = @('MegaProvider.psd1', 'MegaProvider.dll', 'MegaProvider.format.ps1xml', 'MegaProvider.types.ps1xml', $hostName, 'LICENSE', 'THIRD-PARTY-NOTICES.txt')
 
 if ($IsWindows) {
     # The host links the CRT dynamically (the SDK's overlay triplet); ship it app-local so

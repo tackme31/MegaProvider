@@ -19,6 +19,7 @@
   <ItemGroup>
     <None Include="MegaProvider.psd1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="MegaProvider.format.ps1xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="MegaProvider.types.ps1xml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The native host is built separately (scripts/dev.ps1 -Native); ship whatever build exists. -->

@@ -57,6 +57,18 @@ Describe 'Navigation' {
         (TabExpansion2 'Get-ChildItem mega:\ph' 22).CompletionMatches.CompletionText | Should -Contain (P 'mega:\photos')
     }
 
+    It 'answers to the file system''s property names' {
+        # Without a real Length, $_.Length reads PowerShell's intrinsic 1 and filters pass silently.
+        (Get-ChildItem mega:\docs -File | Where-Object Length -GT 1000).Name | Should -Be @('readme.txt')
+        (Get-ChildItem mega:\docs -File | Measure-Object Length -Sum).Sum | Should -Be 1540
+        (Get-ChildItem mega:\docs\readme.txt | Select-Object Length).Length | Should -Be 1200
+        (Get-Item mega:\docs).Length | Should -BeNullOrEmpty
+        (Get-Item mega:\docs).Mode | Should -Be 'd'
+        (Get-Item mega:\docs\readme.txt).Mode | Should -Be '-'
+        $item = Get-Item mega:\docs\readme.txt
+        $item.LastWriteTime | Should -Be $item.Modified
+    }
+
     It 'formats listings like the file system, grouped by folder' {
         $text = Get-ChildItem mega:\docs | Out-String -Width 120
         # PowerShell's own header format is localized: "Folder: x" in English, "Folder:x" in Japanese.
@@ -97,6 +109,7 @@ Describe 'Changes' {
         Test-Path mega:\docs\notes.txt | Should -BeFalse
         $binned = Get-MegaRubbishItem | Where-Object Handle -EQ $handle
         $binned.Name | Should -Be 'notes.txt'
+        $binned.Length | Should -Be 340   # the types file applies despite the inserted type name
         $binned | Restore-MegaItem | ForEach-Object PSPath | Should -BeLike (P '*::docs\notes.txt')
         Test-Path mega:\docs\notes.txt | Should -BeTrue
     }
@@ -116,12 +129,12 @@ Describe 'Copying' {
     It 'copies a file into a folder, keeping the original' {
         (Copy-Item mega:\docs\readme.txt mega:\copies -PassThru).PSPath | Should -BeLike (P '*::copies\readme.txt')
         (Get-Item mega:\copies\readme.txt).Handle | Should -Not -Be (Get-Item mega:\docs\readme.txt).Handle
-        (Get-Item mega:\copies\readme.txt).Size | Should -Be 1200
+        (Get-Item mega:\copies\readme.txt).Length | Should -Be 1200
     }
 
     It 'copies under a new name' {
         Copy-Item mega:\docs\notes.txt mega:\copies\notes-copy.txt
-        (Get-Item mega:\copies\notes-copy.txt).Size | Should -Be 340
+        (Get-Item mega:\copies\notes-copy.txt).Length | Should -Be 340
     }
 
     It 'copies through the pipeline' {

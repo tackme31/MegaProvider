@@ -18,9 +18,9 @@
         <TableRowEntries>
           <TableRowEntry>
             <TableColumnItems>
-              <TableColumnItem><ScriptBlock>if ($_.IsFolder) { 'd' } else { '-' }</ScriptBlock></TableColumnItem>
-              <TableColumnItem><ScriptBlock>'{0,10} {1,5}' -f $_.Modified.ToString('d'), $_.Modified.ToString('t')</ScriptBlock></TableColumnItem>
-              <TableColumnItem><ScriptBlock>if (-not $_.IsFolder) { $_.Size }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><PropertyName>Mode</PropertyName></TableColumnItem>
+              <TableColumnItem><ScriptBlock>'{0,10} {1,5}' -f $_.LastWriteTime.ToString('d'), $_.LastWriteTime.ToString('t')</ScriptBlock></TableColumnItem>
+              <TableColumnItem><PropertyName>Length</PropertyName></TableColumnItem>
               <TableColumnItem><PropertyName>Handle</PropertyName></TableColumnItem>
               <TableColumnItem><PropertyName>Name</PropertyName></TableColumnItem>
             </TableColumnItems>
@@ -48,9 +48,9 @@
         <TableRowEntries>
           <TableRowEntry>
             <TableColumnItems>
-              <TableColumnItem><ScriptBlock>if ($_.IsFolder) { 'd' } else { '-' }</ScriptBlock></TableColumnItem>
-              <TableColumnItem><ScriptBlock>'{0,10} {1,5}' -f $_.Modified.ToString('d'), $_.Modified.ToString('t')</ScriptBlock></TableColumnItem>
-              <TableColumnItem><ScriptBlock>if (-not $_.IsFolder) { $_.Size }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><PropertyName>Mode</PropertyName></TableColumnItem>
+              <TableColumnItem><ScriptBlock>'{0,10} {1,5}' -f $_.LastWriteTime.ToString('d'), $_.LastWriteTime.ToString('t')</ScriptBlock></TableColumnItem>
+              <TableColumnItem><PropertyName>Length</PropertyName></TableColumnItem>
               <TableColumnItem><PropertyName>Name</PropertyName></TableColumnItem>
             </TableColumnItems>
           </TableRowEntry>

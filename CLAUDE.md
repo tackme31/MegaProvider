@@ -44,6 +44,7 @@ src/MegaProvider/
   AccountCommands.cs       Connect- / Get- / Disconnect-MegaAccount
   ItemCommands.cs          Send- / Receive-MegaItem、Get-MegaRubbishItem、Restore-MegaItem
   MegaProvider.format.ps1xml  ls の表示（ビルド出力へコピーされる）
+  MegaProvider.types.ps1xml   FileInfo と同じ名前のプロパティ（Length、LastWriteTime、Mode）
   Backend/IMegaBackend.cs  バックエンドと認証の境界。パスは '/' 区切りでルート相対（"" がルート）
   Backend/BackendHost.cs   実装を選ぶ唯一の場所（差し替えるときはここだけ変える）
   Backend/FakeBackend.cs   メモリ上の偽物。同名の兄弟（dup.txt ×2）をわざと含む

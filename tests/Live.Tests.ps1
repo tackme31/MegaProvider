@@ -74,8 +74,8 @@ Describe 'Transfers and listing' {
 
     It 'reports sizes and local-time dates' {
         $a = Get-Item "$R\a.txt"
-        $a.Size | Should -Be (Get-Item "$local\up\a.txt").Length
-        ([datetime]::Now - $a.Modified).Duration() | Should -BeLessThan ([timespan]::FromHours(1))
+        $a.Length | Should -Be (Get-Item "$local\up\a.txt").Length
+        ([datetime]::Now - $a.LastWriteTime).Duration() | Should -BeLessThan ([timespan]::FromHours(1))
     }
 
     It 'downloads through the pipeline, and a folder' {
@@ -91,7 +91,7 @@ Describe 'Transfers and listing' {
         Send-MegaItem "$local\up\a.txt" $R | Out-Null
         $a = @(Get-ChildItem $R -Filter a.txt)
         $a | Should -HaveCount 1
-        $a[0].Size | Should -Be (Get-Item "$local\up\a.txt").Length
+        $a[0].Length | Should -Be (Get-Item "$local\up\a.txt").Length
     }
 
     It 'reports errors for bad paths' {
@@ -185,7 +185,7 @@ Describe 'Copying' {
     It 'refuses a name that exists in the destination, adding no version' {
         { Copy-Item "$R\trip_0002.jpg" "$R\copies" -ErrorAction Stop } | Should -Throw '*already exists*'
         @(Get-ChildItem "$R\copies" -Filter trip_0002.jpg) | Should -HaveCount 1
-        (Get-Item "$R\copies\trip_0002.jpg").Size | Should -Be (Get-Item "$R\moved\trip_0002.jpg").Size
+        (Get-Item "$R\copies\trip_0002.jpg").Length | Should -Be (Get-Item "$R\moved\trip_0002.jpg").Length
     }
 
     It 'needs -Recurse for a folder, and then copies everything in it' {

@@ -7,6 +7,7 @@
     Description          = 'Exposes MEGA cloud storage as a PowerShell drive (mega:).'
     PowerShellVersion    = '7.4'
     CompatiblePSEditions = @('Core')
+    TypesToProcess       = @('MegaProvider.types.ps1xml')
     FormatsToProcess     = @('MegaProvider.format.ps1xml')
     CmdletsToExport      = @(
         'Connect-MegaAccount', 'Get-MegaAccount', 'Disconnect-MegaAccount',
