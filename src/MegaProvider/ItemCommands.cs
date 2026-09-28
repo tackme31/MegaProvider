@@ -32,7 +32,7 @@ public abstract class MegaItemCommandBase : PSCmdlet
 
     /// <summary>Emits the item the way Get-Item would, so it carries PSPath and pipes into Rename-Item etc.</summary>
     protected void WriteMegaItem(string megaPath) =>
-        WriteObject(InvokeProvider.Item.Get(new[] { "mega:\\" + megaPath.Replace('/', '\\') }, false, true), true);
+        WriteObject(InvokeProvider.Item.Get(new[] { MegaCloudProvider.ToDrivePath(megaPath) }, false, true), true);
 
     protected void WriteLocalItem(string localPath) =>
         WriteObject(InvokeProvider.Item.Get(new[] { localPath }, false, true), true);
@@ -166,7 +166,7 @@ public sealed class ReceiveMegaItemCommand : MegaItemCommandBase
                 foreach (var megaPath in ResolveMega(input, literal))
                 {
                     MegaCloudProvider.EnsureUnambiguous(megaPath);
-                    if (!ShouldProcess("mega:\\" + megaPath.Replace('/', '\\'), $"Download to '{_localDestination}'")) continue;
+                    if (!ShouldProcess(MegaCloudProvider.ToDrivePath(megaPath),$"Download to '{_localDestination}'")) continue;
                     WriteLocalItem(Backend.Download(megaPath, _localDestination, ProgressFor("Downloading from MEGA", megaPath)));
                 }
             });

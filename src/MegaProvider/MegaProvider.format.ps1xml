@@ -35,7 +35,7 @@
       </ViewSelectedBy>
       <GroupBy>
         <!-- PSParentPath is provider-qualified ("MegaProvider\Mega::photos\2024"); show it as a drive path. -->
-        <ScriptBlock>" $($_.PSDrive.Name):\" + ($_.PSParentPath -replace '^.*?::\\?', '')</ScriptBlock>
+        <ScriptBlock>"$($_.PSDrive.Name):$([IO.Path]::DirectorySeparatorChar)" + ($_.PSParentPath -replace '^.*?::[\\/]?', '')</ScriptBlock>
         <Label>Folder</Label>
       </GroupBy>
       <TableControl>

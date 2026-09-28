@@ -7,6 +7,9 @@
 BeforeAll {
     if ($env:MEGAPROVIDER_BACKEND -ne 'fake') { throw 'Run with MEGAPROVIDER_BACKEND=fake (scripts/test.ps1 does).' }
     Import-Module $env:MEGAPROVIDER_PSD1 -Force
+
+    # Expected paths are written with '\'; outside Windows PowerShell hands them back with '/'.
+    function P([string]$path) { $path.Replace('\', [IO.Path]::DirectorySeparatorChar) }
 }
 
 Describe 'Navigation' {
@@ -21,7 +24,7 @@ Describe 'Navigation' {
 
     It 'recurses with -Filter and -Name' {
         Get-ChildItem mega:\photos -Recurse -Filter *.jpg -Name | Should -HaveCount 5
-        Get-ChildItem mega:\photos -Recurse -File -Name | Should -Contain '2024\IMG_0001.jpg'
+        Get-ChildItem mega:\photos -Recurse -File -Name | Should -Contain (P '2024\IMG_0001.jpg')
     }
 
     It 'recurses from the drive root after cd (regression: GetChildName on "")' {
@@ -38,25 +41,26 @@ Describe 'Navigation' {
         Test-Path mega:\docs\readme.txt | Should -BeTrue
         Test-Path mega:\docs\nope.txt | Should -BeFalse
         (Get-Item mega:\docs).IsFolder | Should -BeTrue
-        (Resolve-Path mega:\docs\*.txt).Path | Should -Be @('mega:\docs\readme.txt', 'mega:\docs\notes.txt')
+        (Resolve-Path mega:\docs\*.txt).Path | Should -Be @((P 'mega:\docs\readme.txt'), (P 'mega:\docs\notes.txt'))
         Split-Path mega:\docs\readme.txt -Leaf | Should -Be 'readme.txt'
-        Join-Path mega:\docs readme.txt | Should -Be 'mega:\docs\readme.txt'
+        Join-Path mega:\docs readme.txt | Should -Be (P 'mega:\docs\readme.txt')
     }
 
     It 'completes paths with Tab' {
-        (TabExpansion2 'Get-ChildItem mega:\docs\re' 27).CompletionMatches.CompletionText | Should -Contain 'mega:\docs\readme.txt'
+        (TabExpansion2 'Get-ChildItem mega:\docs\re' 27).CompletionMatches.CompletionText | Should -Contain (P 'mega:\docs\readme.txt')
     }
 
     # Known limitation, PowerShell's side: completion for non-file-system providers
     # (CompletionCompleters.GetDefaultProviderResults) puts every child of the folder into a
     # dictionary keyed by name, so a folder holding same-named siblings throws and completes nothing.
     It 'completes paths with Tab in a folder with same-named siblings' -Skip {
-        (TabExpansion2 'Get-ChildItem mega:\ph' 22).CompletionMatches.CompletionText | Should -Contain 'mega:\photos'
+        (TabExpansion2 'Get-ChildItem mega:\ph' 22).CompletionMatches.CompletionText | Should -Contain (P 'mega:\photos')
     }
 
     It 'formats listings like the file system, grouped by folder' {
         $text = Get-ChildItem mega:\docs | Out-String -Width 120
-        $text | Should -Match 'Folder: mega:\\docs'
+        # PowerShell's own header format is localized: "Folder: x" in English, "Folder:x" in Japanese.
+        $text | Should -Match ('Folder: ?' + [regex]::Escape((P 'mega:\docs')))
         $text | Should -Match 'Mode\s+LastWriteTime\s+Length\s+Name'
     }
 }
@@ -93,7 +97,7 @@ Describe 'Changes' {
         Test-Path mega:\docs\notes.txt | Should -BeFalse
         $binned = Get-MegaRubbishItem | Where-Object Handle -EQ $handle
         $binned.Name | Should -Be 'notes.txt'
-        $binned | Restore-MegaItem | ForEach-Object PSPath | Should -BeLike '*::docs\notes.txt'
+        $binned | Restore-MegaItem | ForEach-Object PSPath | Should -BeLike (P '*::docs\notes.txt')
         Test-Path mega:\docs\notes.txt | Should -BeTrue
     }
 
@@ -110,7 +114,7 @@ Describe 'Copying' {
     AfterAll { Remove-Item mega:\copies -Recurse }
 
     It 'copies a file into a folder, keeping the original' {
-        (Copy-Item mega:\docs\readme.txt mega:\copies -PassThru).PSPath | Should -BeLike '*::copies\readme.txt'
+        (Copy-Item mega:\docs\readme.txt mega:\copies -PassThru).PSPath | Should -BeLike (P '*::copies\readme.txt')
         (Get-Item mega:\copies\readme.txt).Handle | Should -Not -Be (Get-Item mega:\docs\readme.txt).Handle
         (Get-Item mega:\copies\readme.txt).Size | Should -Be 1200
     }

@@ -15,11 +15,17 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
     protected override Collection<PSDriveInfo> InitializeDefaultDrives() =>
         new() { new PSDriveInfo("mega", ProviderInfo, "", "MEGA cloud drive", null) };
 
-    // PowerShell hands paths over with '\' and, depending on the cmdlet, with or without a leading one.
+    // PowerShell's own separator for provider paths: it rewrites them to '/' outside Windows, so
+    // handing back '\' there would leave paths half one way and half the other.
+    private static readonly char Separator = OperatingSystem.IsWindows() ? '\\' : '/';
+
+    // PowerShell hands paths over with '\' or '/' and, depending on the cmdlet, with or without a leading one.
     internal static string ToMegaPath(string path) =>
         path.Replace('\\', '/').Trim('/');
 
-    private static string ToProviderPath(string megaPath) => megaPath.Replace('/', '\\');
+    private static string ToProviderPath(string megaPath) => megaPath.Replace('/', Separator);
+
+    internal static string ToDrivePath(string megaPath) => "mega:" + Separator + ToProviderPath(megaPath);
 
     /// <summary>
     /// Throws if any segment of the path matches several same-named siblings. Backends silently take the

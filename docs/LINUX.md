@@ -101,11 +101,16 @@ OS ごとに実装し、`BackendHost` で選ぶ。
   越しでは vcpkg のビルドが極端に遅くなる。
 - clone 後の準備は `git submodule update --init` と `native/third_party/vcpkg/bootstrap-vcpkg.sh`。
 
-## プロバイダのパス（要確認）
+## プロバイダのパス（2026-09-28 に Linux で確認・対応済み）
 
-- `MegaCloudProvider.ToProviderPath` は `\` 区切りでパスを返し、`ItemCommands.cs` は `"mega:\\" + ...` を組み立てる。
-  Linux の pwsh は `\` と `/` の両方を区切りとして受け付けるはずだが、`PSPath` の見え方、`Split-Path` /
-  `Join-Path`、タブ補完の結果がどうなるかは、偽バックエンドのテストを Linux で流して確かめる。
+- Linux の pwsh は `mega:\docs` も `mega:/docs` も受け付けるが、返すパス（`Resolve-Path`、`PSPath`、タブ補完、
+  `-Name`）は `/` に書き換える。プロバイダが `\` で返すと `MegaProvider\Mega::docs/notes.txt` のように混ざるので、
+  返す側の区切りを OS に合わせた（`MegaCloudProvider.Separator`、`ToDrivePath`）。受け取る側（`ToMegaPath`）は
+  どちらも区切りとして扱う。
+- 一覧の見出し（`Folder: mega:\docs`）の書式は PowerShell 側で言語ごとに違う。英語は `Directory: /etc` と
+  `:` の後に空白が入り、日本語は `ディレクトリ:C:\` と入らない。書式の定義に空白を足すと英語で 2 つになるので、
+  足さずにファイルシステムの一覧と同じ見え方にした。
+- テストの期待値は `\` で書き、`P` 関数（`tests/Fake.Tests.ps1`）で OS の区切りに直す。
 - MEGA の名前に `\` や `/` が入っていると、いまもパスでは指せない（`ToMegaPath` がどちらも区切りにする）。
   Linux ではローカルのファイル名に `\` を使えるので、`Send-MegaItem` でそういう名前のものができうる。
   稀なのでアップロード時に拒否すれば足りる。
