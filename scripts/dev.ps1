@@ -24,14 +24,20 @@ function Stop-Host {
 }
 Stop-Host
 
-$hostExe = Join-Path $root 'native/build/Release/megaprovider-host.exe'
+$hostExe = Join-Path $root ($IsWindows ? 'native/build/Release/megaprovider-host.exe' : 'native/build/megaprovider-host')
 if ($Native -or -not (Test-Path $hostExe)) {
-    $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-    $cmake = Join-Path $vs 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe'
+    $cmake = 'cmake'
+    if ($IsWindows) {
+        $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+        $cmake = Join-Path $vs 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe'
+    }
     Push-Location (Join-Path $root 'native')
     try {
-        if (-not (Test-Path 'build/CMakeCache.txt')) { & $cmake --preset msvc; if ($LASTEXITCODE) { exit $LASTEXITCODE } }
-        & $cmake --build --preset release -- -m '-v:minimal'
+        if (-not (Test-Path 'build/CMakeCache.txt')) {
+            & $cmake --preset ($IsWindows ? 'msvc' : 'linux')
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+        }
+        if ($IsWindows) { & $cmake --build --preset release -- -m '-v:minimal' } else { & $cmake --build --preset linux }
         if ($LASTEXITCODE) { exit $LASTEXITCODE }
     } finally { Pop-Location }
 }

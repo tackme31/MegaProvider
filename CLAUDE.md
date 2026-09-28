@@ -87,7 +87,9 @@ dotnet build                     # MegaProvider.sln
 - **ホストの exe も起動中はロックされる。** `dev.ps1` は最初にホストへ `shutdown` を送って止める。
   手で `cmake --build` するときも先に止めること。
 - native のビルドは Visual Studio 付属の CMake で。Git Bash から MSBuild に `/m` を渡すとパスに化けるので `-m` と書く。
-- git clone したあとは `git submodule update --init` と `native/third_party/vcpkg/bootstrap-vcpkg.bat` が要る。
+- git clone したあとは `git submodule update --init` と `native/third_party/vcpkg/bootstrap-vcpkg.bat`（Linux では `.sh`）が要る。
+- Linux では `dev.ps1` が `linux` プリセット（GCC + Ninja、出力は `native/build/megaprovider-host`）でビルドする。
+  並列数は `CMAKE_BUILD_PARALLEL_LEVEL` で絞れる（詳細は `docs/LINUX.md`）。
 - `native/` で clangd が出す「ヘッダが見つからない」類の診断は無視してよい（VS ジェネレータは
   compile_commands.json を作らない）。判断は MSVC のビルド結果で。
 

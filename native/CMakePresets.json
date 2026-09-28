@@ -3,25 +3,44 @@
   "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
   "configurePresets": [
     {
-      "name": "msvc",
-      "displayName": "MSVC 2022 x64 (vcpkg)",
-      "generator": "Visual Studio 17 2022",
-      "architecture": { "value": "x64", "strategy": "set" },
+      "name": "vcpkg",
+      "hidden": true,
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "VCPKG_ROOT": "${sourceDir}/third_party/vcpkg",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/third_party/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_MANIFEST_DIR": "${sourceDir}/third_party/sdk",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-mega",
         "VCPKG_OVERLAY_PORTS": "${sourceDir}/third_party/sdk/cmake/vcpkg_overlay_ports",
         "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/third_party/sdk/cmake/vcpkg_overlay_triplets",
         "VCPKG_MANIFEST_FEATURES": "use-openssl;use-freeimage;use-pdfium;use-libuv",
         "USE_LIBUV": "ON"
       }
+    },
+    {
+      "name": "msvc",
+      "inherits": "vcpkg",
+      "displayName": "MSVC 2022 x64 (vcpkg)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "cacheVariables": { "VCPKG_TARGET_TRIPLET": "x64-windows-mega" },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "linux",
+      "inherits": "vcpkg",
+      "displayName": "GCC x64 (vcpkg, Ninja)",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_TARGET_TRIPLET": "x64-linux-mega",
+        "USE_READLINE": "OFF"
+      },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
     }
   ],
   "buildPresets": [
     { "name": "debug", "configurePreset": "msvc", "configuration": "Debug", "targets": ["megaprovider-host"] },
-    { "name": "release", "configurePreset": "msvc", "configuration": "Release", "targets": ["megaprovider-host"] }
+    { "name": "release", "configurePreset": "msvc", "configuration": "Release", "targets": ["megaprovider-host"] },
+    { "name": "linux", "configurePreset": "linux", "targets": ["megaprovider-host"] }
   ]
 }

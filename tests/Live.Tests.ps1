@@ -25,6 +25,9 @@ BeforeAll {
     'nihongo' | Set-Content "$local\up\日本語 ファイル.txt"
     'x' | Set-Content "$local\up\sub\x.txt"
 
+    # Expected paths are written with '\'; outside Windows PowerShell hands them back with '/'.
+    function P([string]$path) { $path.Replace('\', [IO.Path]::DirectorySeparatorChar) }
+
     # Talks to a host directly (docs/HOST.md), for what the module never asks of it.
     function Invoke-HostRequest([string]$pipeName, [string]$op, [hashtable]$arguments = @{}) {
         $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', $pipeName, [IO.Pipes.PipeDirection]::InOut, [IO.Pipes.PipeOptions]::Asynchronous)
@@ -66,7 +69,7 @@ Describe 'Transfers and listing' {
     It 'lists with -File, -Directory and -Recurse' {
         (Get-ChildItem $R -Directory).Name | Should -Be 'sub'
         (Get-ChildItem $R -File).Name | Sort-Object | Should -Be @('a.txt', 'IMG_0001.jpg', 'IMG_0002.jpg', '日本語 ファイル.txt')
-        Get-ChildItem $R -Recurse -File -Name | Should -Contain 'sub\x.txt'
+        Get-ChildItem $R -Recurse -File -Name | Should -Contain (P 'sub\x.txt')
     }
 
     It 'reports sizes and local-time dates' {
@@ -79,7 +82,7 @@ Describe 'Transfers and listing' {
         $files = Get-ChildItem $R -File | Receive-MegaItem -Destination $down
         $files | Should -HaveCount 4
         Get-Content "$down\日本語 ファイル.txt" | Should -Be 'nihongo'
-        (Receive-MegaItem "$R\sub" $down).FullName | Should -Be "$down\sub"
+        (Receive-MegaItem "$R\sub" $down).FullName | Should -Be (Join-Path $down sub)
         Get-Content "$down\sub\x.txt" | Should -Be 'x'
     }
 
@@ -133,7 +136,7 @@ Describe 'Folders, moving and the Rubbish Bin' {
     }
 
     It 'moves into a folder' {
-        (Move-Item "$R\trip_0001.jpg" "$R\moved" -PassThru).PSPath | Should -BeLike '*\moved\trip_0001.jpg'
+        (Move-Item "$R\trip_0001.jpg" "$R\moved" -PassThru).PSPath | Should -BeLike (P '*\moved\trip_0001.jpg')
         (Get-ChildItem "$R\moved").Name | Should -Be 'trip_0001.jpg'
     }
 
@@ -150,7 +153,7 @@ Describe 'Folders, moving and the Rubbish Bin' {
         Test-Path "$R\A.txt" | Should -BeFalse
         $binned = Get-MegaRubbishItem | Where-Object Handle -EQ $handle
         $binned.Name | Should -Be 'A.txt'
-        ($binned | Restore-MegaItem).PSPath | Should -BeLike '*\A.txt'
+        ($binned | Restore-MegaItem).PSPath | Should -BeLike (P '*\A.txt')
         Test-Path "$R\A.txt" | Should -BeTrue
     }
 
@@ -158,7 +161,7 @@ Describe 'Folders, moving and the Rubbish Bin' {
         $handle = (Get-Item "$R\sub").Handle
         Remove-Item "$R\sub" -Recurse
         Restore-MegaItem -Handle $handle -Destination "$R\moved" | Out-Null
-        Get-ChildItem "$R\moved" -Recurse -Name | Should -Contain 'sub\x.txt'
+        Get-ChildItem "$R\moved" -Recurse -Name | Should -Contain (P 'sub\x.txt')
     }
 }
 
@@ -167,7 +170,7 @@ Describe 'Copying' {
 
     It 'copies a file into a folder under its own name, keeping the original' {
         $copy = Copy-Item "$R\A.txt" "$R\copies" -PassThru
-        $copy.PSPath | Should -BeLike '*\copies\A.txt'
+        $copy.PSPath | Should -BeLike (P '*\copies\A.txt')
         $copy.Handle | Should -Not -Be (Get-Item "$R\A.txt").Handle
         Receive-MegaItem "$R\copies\A.txt" $down | Get-Content | Should -Be 'hello, version 2'
     }
@@ -189,7 +192,7 @@ Describe 'Copying' {
         { Copy-Item "$R\moved" "$R\copies" -ErrorAction Stop } | Should -Throw '*-Recurse*'
         Copy-Item "$R\moved" "$R\copies" -Recurse
         Get-ChildItem "$R\copies\moved" -Recurse -Name | Sort-Object |
-            Should -Be @('sub', 'sub\x.txt', 'trip_0001.jpg', 'trip_0002.jpg')
+            Should -Be @('sub', (P 'sub\x.txt'), 'trip_0001.jpg', 'trip_0002.jpg')
     }
 }
 
@@ -207,9 +210,11 @@ Describe 'The SDK host' {
         # A second host (its own pipe and data folder) takes the same session and logs it out on the server.
         $mainPipe = & "$PSScriptRoot/../scripts/Get-HostPipeName.ps1"
         $session = (Invoke-HostRequest $mainPipe status).session
-        $otherPipe = "megaprovider-test-$(Get-Random)"
-        $exe = Join-Path (Split-Path $env:MEGAPROVIDER_PSD1) 'megaprovider-host.exe'
-        Start-Process $exe -WindowStyle Hidden -ArgumentList '--pipe', $otherPipe, '--data', "`"$local\host2`"", '--idle-minutes', '1'
+        $data = Join-Path $local 'host2'
+        $otherPipe = $IsWindows ? "megaprovider-test-$(Get-Random)" : (Join-Path $data 'host.sock')
+        $exe = Join-Path (Split-Path $env:MEGAPROVIDER_PSD1) ($IsWindows ? 'megaprovider-host.exe' : 'megaprovider-host')
+        $hidden = $IsWindows ? @{ WindowStyle = 'Hidden' } : @{}
+        Start-Process $exe @hidden -ArgumentList '--pipe', "`"$otherPipe`"", '--data', "`"$data`"", '--idle-minutes', '1'
         Invoke-HostRequest $otherPipe resume @{ session = $session } | Out-Null
         Invoke-HostRequest $otherPipe logout | Out-Null
         Invoke-HostRequest $otherPipe shutdown | Out-Null

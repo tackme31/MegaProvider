@@ -1,9 +1,10 @@
 # Linux 対応の調査（2026-09-28）
 
-> **状態: 調査のみ（未着手）。** コードはまだ Windows 専用。macOS には対応しない。
+> **状態: 動く（2026-09-28）。** Ubuntu 22.04（WSL2）でホストをビルドし、偽バックエンドとテスト用アカウントの
+> テストが全部通った。残りはスクリプトと配布（下の「進める順序」の 5 以降）。macOS には対応しない。
 
 コードを読んで Windows に依存している箇所を洗い出し、置き換え方と進める順序を決めた記録。
-実機（Linux）ではまだ何も確かめていない。「要確認」と書いたものは、手を付けるときに実物で確かめる。
+「確認済み」と書いたものは Linux の実物で確かめた。
 
 ## 結論
 
@@ -41,7 +42,8 @@ Windows の名前付きパイプを Unix ドメインソケットに替える。
   `~/.local/share/MegaProvider/host/`。ディレクトリは 0700、ソケットは 0600 にする。起動したユーザーだけが
   開けるという、いまの DACL と同じ性質になる。
 - **C# 側は `NamedPipeClientStream` のまま使える見込み。** .NET は Unix でパイプ名に絶対パスを渡すと、
-  それをそのままソケットのパスとして使う（相対の名前だと `/tmp/CoreFxPipe_<名前>`）。**要確認。**
+  それをそのままソケットのパスとして使う（相対の名前だと `/tmp/CoreFxPipe_<名前>`）。**確認済み。**
+  ソケットがまだ無いとき、古いソケットが残っているときも、`Connect(タイムアウト)` はホストが立ち上がるまで待てた。
 - **二重起動の判定**: Windows では `FILE_FLAG_FIRST_PIPE_INSTANCE` で判定している。Unix では bind が
   `EADDRINUSE` なら connect を試し、応答があれば別のホストが動いているので終わる。応答が無ければ前のホストが
   残した古いソケットなので、消して bind し直す。
@@ -58,7 +60,10 @@ Windows の名前付きパイプを Unix ドメインソケットに替える。
   `pwsh -File x.ps1 | sed` が終わらなくなることだった。Linux では `UseShellExecute = false` で起動し、
   **ホストが起動直後に `setsid()` して 0/1/2 を `/dev/null` へ付け替える**ことで防ぐ。`setsid()` には、
   端末を閉じたときの SIGHUP でホストが道連れにならない効果もある。
-- .NET が自分で開くファイル記述子には CLOEXEC が付くので、0/1/2 以外は継承されない見込み（**要確認**）。
+- .NET が自分で開くファイル記述子には CLOEXEC が付くので、0/1/2 以外は継承されない。**確認済み**: ホストが
+  いない状態から `pwsh -Command '...Get-ChildItem mega:\' | cat` が 3 秒で終わり、ホストは自分のセッション
+  （端末なし）で残った。
+- `Get-Process megaprovider-host` は Linux でも見つかる（カーネルの `comm` は 15 文字で切れるが、.NET が補う）。
 
 ## セッションの保存（決定: 0600 のファイル）
 
@@ -95,8 +100,14 @@ OS ごとに実装し、`BackendHost` で選ぶ。
 - **vcpkg の機能**: いまは `use-openssl;use-freeimage;use-pdfium;use-libuv`。freeimage と pdfium は、アップロード時に
   SDK がサムネイルとプレビューを作るのに使う。Linux で最初のビルドが重すぎれば外すことを検討する。外すと、
   Linux からアップロードした画像や PDF にサムネイルが付かなくなる（Windows と差が出る）。
-- 最初の vcpkg のビルドには、`build-essential cmake ninja-build pkg-config autoconf autoconf-archive libtool curl zip`
-  などが要る（MegaExplorer の調査より。実際に足りないものはビルドして確かめる）。
+- 最初の vcpkg のビルドには、`build-essential cmake ninja-build pkg-config autoconf autoconf-archive automake libtool
+  curl zip unzip` が要る（これで足りた）。vcpkg は依存のビルド用に自分の CMake（4.x）を取ってくるので、apt の
+  CMake は 3.22 で足りる。
+- 所要時間（16 コア）: vcpkg の依存 32 個が約 30 分（初回だけ。以後はキャッシュ）、SDK とホストが 6 分。
+  **並列数を絞る**（`cmake --build --preset linux -j 8`、または `CMAKE_BUILD_PARALLEL_LEVEL=8`）。WSL で既定の
+  並列数（コア数 + 2）のまま SDK をコンパイルしたら、Windows 側のメモリが尽きかけた。
+- 出来上がった `megaprovider-host`（約 42MB）が動的にリンクするのは glibc・libstdc++・libgcc_s・libm だけ。
+  freeimage と pdfium を入れたままで、この重さなら外す理由はない。
 - WSL でビルドするときは、リポジトリを WSL 側のファイルシステム（`~/` の下）に置く。`/mnt/<ドライブ>`
   越しでは vcpkg のビルドが極端に遅くなる。
 - clone 後の準備は `git submodule update --init` と `native/third_party/vcpkg/bootstrap-vcpkg.sh`。
@@ -132,7 +143,8 @@ OS ごとに実装し、`BackendHost` で選ぶ。
 2. **Linux の開発環境**（WSL2 の Ubuntu など）: .NET SDK 8、pwsh 7.4 以上、Pester 5.5 以上、ビルドの依存を揃える。（済）
 3. **偽バックエンドのテストを Linux で流す。** ネイティブは不要。パスの問題が出るならここ。（済）
 4. **Linux のプリセットでホストをビルドする。** `host-request.ps1` で 1 要求ずつ確かめ、テスト用アカウントで
-   `test.ps1 -Live` を流す。
+   `test.ps1 -Live` を流す。（済。`-Live` の 25 件が全部通り、セッションのファイル 0600・フォルダ 0700・
+   ソケット 0600 を確かめた）
 5. **スクリプトの OS 分岐と配布**（`dev.ps1`、`test.ps1`、`host-request.ps1`、`package.ps1`）。
 6. **文書**: README（動作環境、インストール）、`docs/HOST.md`（ソケット）、`CLAUDE.md`。
 7. （任意）GitHub Actions の ubuntu で、偽バックエンドのテストとネイティブのビルドを回す。

@@ -22,11 +22,14 @@
   </ItemGroup>
 
   <!-- The native host is built separately (scripts/dev.ps1 -Native); ship whatever build exists. -->
-  <PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <HostExe>$(MSBuildThisFileDirectory)..\..\native\build\Release\megaprovider-host.exe</HostExe>
   </PropertyGroup>
+  <PropertyGroup Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
+    <HostExe>$(MSBuildThisFileDirectory)../../native/build/megaprovider-host</HostExe>
+  </PropertyGroup>
   <ItemGroup Condition="Exists('$(HostExe)')">
-    <None Include="$(HostExe)" Link="megaprovider-host.exe" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(HostExe)" Link="$([System.IO.Path]::GetFileName('$(HostExe)'))" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
