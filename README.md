@@ -1,23 +1,28 @@
 # MegaProvider
 
 A PowerShell provider that exposes [MEGA](https://mega.io/) cloud storage as a `mega:` drive.
-Browse it with `cd` and `ls`, and change it with the standard cmdlets — `Rename-Item`, `Move-Item`,
-`Copy-Item`, `Remove-Item`, `New-Item` — including in pipelines, so bulk jobs are one line:
+Browse it with `Set-Location` and `Get-ChildItem`, and change it with the standard cmdlets — `Rename-Item`,
+`Move-Item`, `Copy-Item`, `Remove-Item`, `New-Item` — including in pipelines, so bulk jobs are one line:
 
 ```powershell
-Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Name -replace '^IMG_', 'trip_' }
+Get-ChildItem mega:\photos -Recurse -Filter *.jpg `
+    | Rename-Item -NewName { $_.Name -replace '^IMG_', 'trip_' }
 ```
 
 MegaProvider talks to MEGA through the official [MEGA C++ SDK](https://github.com/meganz/sdk), which
-runs in a small background process (`megaprovider-host.exe`) so that the file list is loaded once, not
+runs in a small background process (`megaprovider-host`) so that the file list is loaded once, not
 on every command.
 
 ## Requirements
 
-- Windows x64
+- Windows x64, or Linux x64 with glibc 2.35 or later (Ubuntu 22.04 or later, for example)
 - PowerShell 7.4 or later (not Windows PowerShell 5.1)
 
+macOS is not supported.
+
 ## Installation
+
+### Windows
 
 1. Download `MegaProvider-<version>-win-x64.zip` from the
    [Releases](https://github.com/tackme31/MegaProvider/releases) page.
@@ -30,20 +35,27 @@ on every command.
    Get-ChildItem $dest | Unblock-File
    ```
 
-3. Import the module and log in:
+### Linux
 
-   ```powershell
-   Import-Module MegaProvider
-   Connect-MegaAccount (Get-Credential)
-   cd mega:\
-   ```
+There is no prebuilt package for Linux yet. Build it from source (see
+[Building from source](#building-from-source)) and import the `MegaProvider.psd1` it prints.
+
+### Then
+
+Import the module and log in:
+
+```powershell
+Import-Module MegaProvider
+Connect-MegaAccount (Get-Credential)
+Set-Location mega:\
+```
 
 The login is remembered: later sessions only need `Import-Module MegaProvider`
 (add it to your `$PROFILE` to skip even that).
 
 To uninstall, run `Disconnect-MegaAccount`, stop the background process
-(`Get-Process megaprovider-host | Stop-Process`), and delete the module folder and
-`%LOCALAPPDATA%\MegaProvider`.
+(`Get-Process megaprovider-host | Stop-Process`), and delete the module folder and the data folder
+(`%LOCALAPPDATA%\MegaProvider` on Windows, `~/.local/share/MegaProvider` on Linux).
 
 ## Commands
 
@@ -55,15 +67,16 @@ To uninstall, run `Disconnect-MegaAccount`, stop the background process
 | `Get-MegaAccount` | Shows the account you are connected to. |
 | `Disconnect-MegaAccount` | Logs out (the session is invalidated on MEGA's side too) and forgets it. |
 
-The session is stored in `%LOCALAPPDATA%\MegaProvider\session.dat`, encrypted for your Windows user
-(DPAPI). Your password is never stored.
+The session is stored in `session.dat` in the data folder. On Windows it is encrypted for your Windows
+user (DPAPI); on Linux it is a file only you can read, in a folder only you can open (as MEGAcmd does it).
+Your password is never stored.
 
 ### Standard cmdlets on `mega:`
 
 | Cmdlet | Behaviour |
 |---|---|
 | `Set-Location` (`cd`), `Get-Item`, `Test-Path`, `Resolve-Path`, tab completion | As on a local drive. If no name matches exactly, a case-insensitive match is used (MEGA names are case-sensitive). |
-| `Get-ChildItem` (`ls`) | Supports `-Recurse`, `-Filter`, `-Name`, `-File`, `-Directory`. |
+| `Get-ChildItem` (`dir`, `gci`) | Supports `-Recurse`, `-Filter`, `-Name`, `-File`, `-Directory`. |
 | `Rename-Item` | Refuses a name that another item in the same folder already has. |
 | `Move-Item` | The destination must be an existing folder. Refuses if it already holds an item of the same name. |
 | `Copy-Item` | Within `mega:` only. Refuses if the destination already holds the name. A folder needs `-Recurse` and is copied with everything in it. |
@@ -71,6 +84,10 @@ The session is stored in `%LOCALAPPDATA%\MegaProvider\session.dat`, encrypted fo
 | `New-Item -ItemType Directory` | Creates a folder. |
 
 `-WhatIf` and `-Confirm` work on every command that changes something.
+
+On Linux, `ls` is the system command, not an alias of `Get-ChildItem` (PowerShell keeps `ls`, `cp`, `mv`,
+`rm` and `cat` for the system there), so it does not see `mega:`. Use `dir` or `gci`. Paths are shown with
+`/` on Linux; both `mega:\photos` and `mega:/photos` work on either system.
 
 ### Transfers and the Rubbish Bin
 
@@ -86,8 +103,8 @@ and a local drive (PowerShell does not allow that across providers), which is wh
 `Receive-MegaItem` are for. They take pipeline input:
 
 ```powershell
-Get-ChildItem C:\photos\*.jpg | Send-MegaItem -Destination mega:\photos
-Get-ChildItem mega:\docs -File | Receive-MegaItem -Destination C:\backup
+Get-ChildItem ~/photos/*.jpg | Send-MegaItem -Destination mega:\photos
+Get-ChildItem mega:\docs -File | Receive-MegaItem -Destination ~/backup
 Get-MegaRubbishItem report* | Restore-MegaItem
 ```
 
@@ -120,29 +137,37 @@ client first. Tab completion does not work in such a folder (a PowerShell limita
 
 - **Updating:** the background process stays up for up to an hour after the last command. Stop it
   (`Get-Process megaprovider-host | Stop-Process`) before installing a new version.
-- Windows only for now. Linux support is planned; macOS is not.
 - This is an unofficial tool, not affiliated with or endorsed by MEGA.
 
 ## Building from source
 
-Needs Visual Studio 2022 with the C++ workload (including the v142 toolset) and the .NET 8 SDK or later.
+Needs the .NET 8 SDK or later, PowerShell 7.4 or later, and a C++ toolchain:
+
+- **Windows:** Visual Studio 2022 with the C++ workload (including the v142 toolset).
+- **Linux:** GCC 11 or later and the tools vcpkg needs to build the SDK's dependencies. On Ubuntu:
+
+  ```sh
+  sudo apt install build-essential cmake ninja-build pkg-config autoconf autoconf-archive automake libtool curl zip unzip
+  ```
 
 ```powershell
 git clone --recurse-submodules https://github.com/tackme31/MegaProvider.git
 cd MegaProvider
-native/third_party/vcpkg/bootstrap-vcpkg.bat
+native/third_party/vcpkg/bootstrap-vcpkg.bat   # on Linux: native/third_party/vcpkg/bootstrap-vcpkg.sh
 ./scripts/dev.ps1          # builds everything and opens a pwsh with the module loaded
 ./scripts/test.ps1         # runs the tests that need no account
 ```
 
-The first native build compiles the MEGA SDK and its dependencies through vcpkg and takes a while.
+The first native build compiles the MEGA SDK and its dependencies through vcpkg and takes a while
+(about half an hour on Linux). On Linux it compiles as many files at once as there are cores; if memory
+runs short (under WSL, for example), set `$env:CMAKE_BUILD_PARALLEL_LEVEL = 8` before running `dev.ps1`.
 
 ## License
 
 MegaProvider is licensed under the [MIT License](LICENSE).
 
 The release zip also contains `THIRD-PARTY-NOTICES.txt` for the components linked into
-`megaprovider-host.exe`, including the MEGA C++ SDK (BSD 2-Clause), nlohmann/json (MIT) and the
+`megaprovider-host`, including the MEGA C++ SDK (BSD 2-Clause), nlohmann/json (MIT) and the
 libraries they depend on.
 
 ## Author
