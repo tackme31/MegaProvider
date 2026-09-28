@@ -87,7 +87,8 @@ gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file <一時フ�
 ```
 
 リリース文は**英語**で、変化の 1〜2 行のあとに導入手順を毎回付ける（一時ファイルはスクラッチパッドに置く）。
-変化は前のタグからの `git log --oneline` を眺めて、ユーザーに見える変化を一言で書く（初回なら
+まず `docs/NEXT_RELEASE.md` に書き溜めたことを入れる（出したあとは中身を空に戻してコミットする）。
+残りの変化は前のタグからの `git log --oneline` を眺めて、ユーザーに見える変化を一言で書く（初回なら
 "First release." 程度）。内部の変更しかなければ "Minor fixes and internal changes."。
 `--draft` / `--prerelease` は指示されたときだけ。
 

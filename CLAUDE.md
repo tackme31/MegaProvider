@@ -66,6 +66,7 @@ docs/APPROVED_VERBS.md     PowerShell の承認された動詞の一覧（命名
 docs/COMMANDS.md           実装済み・候補のコマンド一覧
 docs/HOST.md               常駐プロセスの設計、ビルド、プロトコル
 docs/LINUX.md              Linux 対応（OS ごとに違う箇所、置き換え方、実物で確かめたこと、配布）
+docs/NEXT_RELEASE.md       次のリリース文に書くことの書き溜め（/release が読んで空に戻す）
 ```
 
 MEGA を触るコードはすべて `IMegaBackend` の向こうに置く。プロバイダから直接ホストを呼ばない。
