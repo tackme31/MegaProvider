@@ -48,6 +48,27 @@
 「ambiguous」のエラーで拒否する（別のものを変更・転送する事故を防ぐため）。自分で同名を作る操作も拒否するので、
 同名ができるのは他のクライアントで作られた場合だけ。
 
+### 公開リンク
+
+| コマンド | 内容 |
+|---|---|
+| `Publish-MegaItem [-Path] <mega:\...> [-ExpiresAt <DateTime> \| -NoExpiry] [-Password <SecureString>]` | 公開リンクを作り、リンクの情報を返す。リンクがあれば同じリンクを返す（作り直さない）。期限は `-ExpiresAt` / `-NoExpiry` を付けたときだけ変え、付けなければ今の期限を保つ。`ls mega:\x -File \| Publish-MegaItem` で使える |
+| `Unpublish-MegaItem [-Path] <mega:\...>` | 公開リンクを削除する。リンクの無い項目では何もしない。`Get-MegaLink \| Unpublish-MegaItem` で使える |
+| `Get-MegaLink [[-Path] <mega:\...>] [-Recurse]` | パスを省くとクラウドドライブの全リンク。パスを付けるとその項目のリンク（無ければ何も返さない）、`-Recurse` でその下も |
+
+返すものは `MegaProvider.MegaLinkInfo`: `Path`（`mega:\...`）、`Name`、`IsFolder`、`Url`、`Created`、
+`ExpiresAt`（無期限は `$null`）、`IsExpired`、`IsTakenDown`、`Key`、`UrlWithoutKey`、`UnprotectedUrl`、`IsPasswordProtected`。
+
+- **期限とパスワードは Pro（有料プラン）だけ。** MEGA がそう案内している機能なので、無料アカウントでは
+  リンクを作る前に拒否する。期限はサーバーも `EACCESS` で断るが、パスワードは手元の計算だけで作れてしまうので、
+  このモジュールの側で止める。
+- **パスワード付きリンクはサーバーに何も残らない**（元のリンクを暗号化した別の文字列）。`-Password` を付けたときだけ
+  `Url` が `#P!…` になり、後から `Get-MegaLink` で取り出す手段は無い。元のリンク（`UnprotectedUrl`）も有効なまま。
+- 無料アカウントでも使える守り方は、鍵を分けて渡すこと（`UrlWithoutKey` と `Key`）。
+- 偽バックエンドでは `MEGAPROVIDER_FAKE_PRO=1` で有料プランを模擬する。
+
+作らないもの: リンクの閲覧数・ダウンロード数（SDK に API が無い）、書き込み可能なリンク、コンタクトとのフォルダ共有（別の機能）。
+
 `Send-` / `Receive-MegaItem` は偽バックエンドでは使えない（転送は模擬していない）。既定のバックエンドでは
 進捗バーが出て、Ctrl+C で転送を取り消せる。`Restore-MegaItem` は既定のバックエンドでは MEGA 本来の復元先を
 使うので、他のアプリで削除したものも元の場所へ戻る。
@@ -72,7 +93,6 @@
 
 | 優先 | コマンド | 内容・論点 |
 |---|---|---|
-| 中 | `Publish-MegaItem` / `Unpublish-MegaItem` | 公開リンクを作る・消す。作ったリンクを返す |
 | 中 | `Get-MegaItemVersion` | ファイルの版の一覧。アップロードやコピーで版が積まれるので、それを確認する手段 |
 | 中 | `Get-MegaAccount -Detailed` | 容量の使用状況などを足す。新しいコマンドにはせず、スイッチで |
 | 低 | `Import-MegaItem <公開リンク>` | 他の人の公開リンクを自分のアカウントへ取り込む |

@@ -104,9 +104,62 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
 
     public void CancelTransfer() => client.Abort();
 
+    public MegaLink? GetLink(string path)
+    {
+        var chain = RequireChain(path);
+        var link = Call("link", new { handle = chain[^1].Handle });
+        return link is null ? null : ToLink(PathOf(chain), chain[^1], link);
+    }
+
+    public IReadOnlyList<MegaLink> ListLinks() =>
+        Call("links")!.AsArray().Select(n =>
+        {
+            var names = n!["names"]!.AsArray().Select(x => x!.GetValue<string>());
+            return ToLink(string.Join('/', names), ToItem(n), n["link"]!);
+        }).ToList();
+
+    public MegaLink Publish(string path) => Export(path, null);
+
+    public MegaLink Publish(string path, DateTime? expiresAt)
+    {
+        try
+        {
+            // 0 is MEGA's "never".
+            return Export(path, expiresAt is { } at ? new DateTimeOffset(at).ToUnixTimeSeconds() : 0);
+        }
+        catch (HostException e) when (e.Code == HostClient.CodeAccess)
+        {
+            throw new MegaProPlanRequiredException("Link expiry dates");
+        }
+    }
+
+    // A null expiry keeps the one the link has (the host passes it back to MEGA unchanged).
+    private MegaLink Export(string path, long? expires)
+    {
+        var chain = RequireChain(path);
+        return ToLink(PathOf(chain), chain[^1], Call("export", new { handle = chain[^1].Handle, expires })!);
+    }
+
+    public void Unpublish(string path) => Call("unexport", new { handle = RequireChain(path)[^1].Handle });
+
+    public string ProtectLink(string url, string password) =>
+        Call("protectLink", new { url, password })!["url"]!.GetValue<string>();
+
+    public bool HasPaidPlan() => Call("plan")!["proLevel"]!.GetValue<int>() != 0;
+
+    private static string PathOf(List<MegaItem> chain) => string.Join('/', chain.Skip(1).Select(i => i.Name));
+
+    private static MegaLink ToLink(string path, MegaItem item, JsonNode link)
+    {
+        static DateTime? Time(JsonNode n) =>
+            n.GetValue<long>() is > 0 and var t ? DateTimeOffset.FromUnixTimeSeconds(t).LocalDateTime : null;
+        return new MegaLink(path, item.Handle, item.Name, item.IsFolder, link["url"]!.GetValue<string>(),
+            Time(link["created"]!), Time(link["expires"]!), link["expired"]!.GetValue<bool>(), link["takenDown"]!.GetValue<bool>());
+    }
+
     private JsonNode? Call(string op, object? args = null, Action<long, long>? progress = null)
     {
-        if (op is not ("list" or "rubbish" or "path" or "restoreTarget"))
+        if (op is not ("list" or "rubbish" or "path" or "restoreTarget" or "link" or "links" or "protectLink" or "plan"))
             lock (_listings) _listings.Clear();
         auth.EnsureSession();
         var relay = progress is null ? null : (Action<JsonObject>)(p => progress(p["done"]!.GetValue<long>(), p["total"]!.GetValue<long>()));
@@ -158,13 +211,14 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
         return items;
     }
 
-    private static IReadOnlyList<MegaItem> ToItems(JsonNode? list) =>
-        list!.AsArray().Select(n => new MegaItem(
-            n!["handle"]!.GetValue<string>(),
-            n["name"]!.GetValue<string>(),
-            n["folder"]!.GetValue<bool>(),
-            n["size"]!.GetValue<long>(),
-            DateTimeOffset.FromUnixTimeSeconds(n["mtime"]!.GetValue<long>()).LocalDateTime)).ToList();
+    private static IReadOnlyList<MegaItem> ToItems(JsonNode? list) => list!.AsArray().Select(n => ToItem(n!)).ToList();
+
+    private static MegaItem ToItem(JsonNode n) => new(
+        n["handle"]!.GetValue<string>(),
+        n["name"]!.GetValue<string>(),
+        n["folder"]!.GetValue<bool>(),
+        n["size"]!.GetValue<long>(),
+        DateTimeOffset.FromUnixTimeSeconds(n["mtime"]!.GetValue<long>()).LocalDateTime);
 
     private MegaItem RequireFolder(string path)
     {

@@ -57,5 +57,27 @@
         </TableRowEntries>
       </TableControl>
     </View>
+    <View>
+      <Name>MegaLinkInfo</Name>
+      <ViewSelectedBy>
+        <TypeName>MegaProvider.MegaLinkInfo</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader><Label>ExpiresAt</Label><Width>16</Width><Alignment>Right</Alignment></TableColumnHeader>
+          <TableColumnHeader><Label>Path</Label></TableColumnHeader>
+          <TableColumnHeader><Label>Url</Label></TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem><ScriptBlock>if ($_.IsTakenDown) { 'taken down' } elseif ($_.IsExpired) { 'expired' } elseif ($_.ExpiresAt) { '{0,10} {1,5}' -f $_.ExpiresAt.ToString('d'), $_.ExpiresAt.ToString('t') }</ScriptBlock></TableColumnItem>
+              <TableColumnItem><PropertyName>Path</PropertyName></TableColumnItem>
+              <TableColumnItem><PropertyName>Url</PropertyName></TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
   </ViewDefinitions>
 </Configuration>

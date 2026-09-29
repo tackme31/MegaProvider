@@ -11,7 +11,8 @@
     FormatsToProcess     = @('MegaProvider.format.ps1xml')
     CmdletsToExport      = @(
         'Connect-MegaAccount', 'Get-MegaAccount', 'Disconnect-MegaAccount',
-        'Send-MegaItem', 'Receive-MegaItem', 'Get-MegaRubbishItem', 'Restore-MegaItem'
+        'Send-MegaItem', 'Receive-MegaItem', 'Get-MegaRubbishItem', 'Restore-MegaItem',
+        'Publish-MegaItem', 'Unpublish-MegaItem', 'Get-MegaLink'
     )
     FunctionsToExport    = @()
     AliasesToExport      = @()

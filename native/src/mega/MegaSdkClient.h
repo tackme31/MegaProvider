@@ -193,6 +193,8 @@ public:
 
     Result<std::int64_t> getLinkExpiry(std::uint64_t handle) const override;
 
+    Result<LinkDetails> getLinkDetails(std::uint64_t handle) const override;
+
     void encryptLinkWithPassword(const std::string& link,
                                  const std::string& password,
                                  std::function<void(Result<std::string>)> onDone) override;

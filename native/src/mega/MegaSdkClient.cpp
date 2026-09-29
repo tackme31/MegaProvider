@@ -1316,6 +1316,28 @@ Result<std::int64_t> MegaSdkClient::getLinkExpiry(std::uint64_t handle) const
     return Result<std::int64_t>::ok(node->getExpirationTime());
 }
 
+Result<LinkDetails> MegaSdkClient::getLinkDetails(std::uint64_t handle) const
+{
+    if (mShuttingDown)
+        return Result<LinkDetails>::fail(kShutDownMessage, kClientShutDownCode);
+
+    std::unique_ptr<mega::MegaNode> node = resolveNode(handle, false);
+    if (!node)
+        return Result<LinkDetails>::fail("No node with the given handle", MegaErrorCode::kENoEnt);
+
+    LinkDetails details;
+    details.exported = node->isExported();
+    if (!details.exported)
+        return Result<LinkDetails>::ok(details);
+    std::unique_ptr<char[]> url(node->getPublicLink(true));
+    details.url = url ? url.get() : "";
+    details.created = node->getPublicLinkCreationTime();
+    details.expires = std::max<std::int64_t>(node->getExpirationTime(), 0);
+    details.expired = node->isExpired();
+    details.takenDown = node->isTakenDown();
+    return Result<LinkDetails>::ok(details);
+}
+
 void MegaSdkClient::encryptLinkWithPassword(const std::string& link,
                                             const std::string& password,
                                             std::function<void(Result<std::string>)> onDone)

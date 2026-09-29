@@ -196,6 +196,94 @@ Describe 'Same-named siblings' {
     }
 }
 
+Describe 'Public links' {
+    AfterEach {
+        Remove-Item env:MEGAPROVIDER_FAKE_PRO -ErrorAction SilentlyContinue
+        Get-MegaLink | Unpublish-MegaItem
+    }
+
+    It 'creates a link, returns the same one again, and removes it' {
+        $link = Publish-MegaItem mega:\docs\readme.txt
+        $link.Path | Should -Be (P 'mega:\docs\readme.txt')
+        $link.Url | Should -BeLike 'https://mega.nz/file/*#*'
+        $link.UrlWithoutKey + '#' + $link.Key | Should -Be $link.Url
+        $link.ExpiresAt | Should -BeNullOrEmpty
+        $link.IsPasswordProtected | Should -BeFalse
+        (Publish-MegaItem mega:\docs\readme.txt).Url | Should -Be $link.Url
+        (Get-MegaLink mega:\docs\readme.txt).Url | Should -Be $link.Url
+        Unpublish-MegaItem mega:\docs\readme.txt
+        Get-MegaLink mega:\docs\readme.txt | Should -BeNullOrEmpty
+        Unpublish-MegaItem mega:\docs\readme.txt   # no link: nothing to do, no error
+    }
+
+    It 'works through the pipeline both ways' {
+        Get-ChildItem mega:\docs -File | Publish-MegaItem | Should -HaveCount 2
+        (Get-MegaLink).Path | Should -Be @((P 'mega:\docs\readme.txt'), (P 'mega:\docs\notes.txt'))
+        Get-MegaLink | Unpublish-MegaItem
+        Get-MegaLink | Should -BeNullOrEmpty
+    }
+
+    It 'lists the links under a folder with -Recurse' {
+        Publish-MegaItem mega:\photos, mega:\photos\2024\IMG_0001.jpg, mega:\docs\notes.txt | Out-Null
+        Get-MegaLink mega:\photos | Should -HaveCount 1
+        (Get-MegaLink mega:\photos -Recurse).Name | Should -Be @('photos', 'IMG_0001.jpg')
+        (Get-MegaLink mega:\PHOTOS\2024 -Recurse).Name | Should -Be @('IMG_0001.jpg')
+        Get-MegaLink mega:\ -Recurse | Should -HaveCount 3
+    }
+
+    It 'does nothing under -WhatIf' {
+        Publish-MegaItem mega:\docs\readme.txt -WhatIf
+        Get-MegaLink | Should -BeNullOrEmpty
+        Publish-MegaItem mega:\docs\readme.txt | Out-Null
+        Unpublish-MegaItem mega:\docs\readme.txt -WhatIf
+        Get-MegaLink | Should -HaveCount 1
+    }
+
+    It 'refuses an ambiguous path' {
+        { Publish-MegaItem mega:\dup.txt -ErrorAction Stop } | Should -Throw '*ambiguous*'
+    }
+
+    It 'refuses an expiry or a password on the free plan, before making a link' {
+        { Publish-MegaItem mega:\docs\readme.txt -ExpiresAt (Get-Date).AddDays(1) -ErrorAction Stop } | Should -Throw '*Pro plan*'
+        $password = ConvertTo-SecureString 'secret' -AsPlainText -Force
+        { Publish-MegaItem mega:\docs\readme.txt -Password $password -ErrorAction Stop } | Should -Throw '*Pro plan*'
+        Get-MegaLink | Should -BeNullOrEmpty
+    }
+
+    It 'sets, keeps and clears the expiry on a paid plan' {
+        $env:MEGAPROVIDER_FAKE_PRO = '1'
+        $at = (Get-Date).AddDays(7)
+        (Publish-MegaItem mega:\docs\readme.txt -ExpiresAt $at).ExpiresAt | Should -Be $at
+        (Publish-MegaItem mega:\docs\readme.txt).ExpiresAt | Should -Be $at
+        (Get-MegaLink mega:\docs\readme.txt | Out-String) | Should -Match ([regex]::Escape($at.ToString('d')))
+        (Publish-MegaItem mega:\docs\readme.txt -NoExpiry).ExpiresAt | Should -BeNullOrEmpty
+    }
+
+    It 'checks the expiry options' {
+        $env:MEGAPROVIDER_FAKE_PRO = '1'
+        { Publish-MegaItem mega:\docs\readme.txt -ExpiresAt (Get-Date).AddDays(-1) -ErrorAction Stop } | Should -Throw '*not in the future*'
+        { Publish-MegaItem mega:\docs\readme.txt -ExpiresAt (Get-Date).AddDays(1) -NoExpiry -ErrorAction Stop } | Should -Throw '*either*'
+    }
+
+    It 'makes a password-protected link on a paid plan, keeping the plain one' {
+        $env:MEGAPROVIDER_FAKE_PRO = '1'
+        $password = ConvertTo-SecureString 'secret' -AsPlainText -Force
+        $link = Publish-MegaItem mega:\docs\readme.txt -Password $password
+        $link.Url | Should -BeLike 'https://mega.nz/#P!*'
+        $link.IsPasswordProtected | Should -BeTrue
+        $link.UnprotectedUrl | Should -BeLike 'https://mega.nz/file/*'
+        # Nothing of the password is stored, so a later read has only the plain link.
+        (Get-MegaLink mega:\docs\readme.txt).Url | Should -Be $link.UnprotectedUrl
+    }
+
+    It 'drops the link of an item in the Rubbish Bin from the listing' {
+        New-Item mega:\binned -ItemType Directory | Out-Null
+        Publish-MegaItem mega:\binned | Out-Null
+        Remove-Item mega:\binned
+        Get-MegaLink | Should -BeNullOrEmpty
+    }
+}
+
 # MEGAPROVIDER_FAKE_EAGAIN makes the fake refuse changes with EAGAIN, through the same retry as the host
 # (RateLimit.Retry: 4 retries). Nothing here reaches MEGA; provoking the real limit is not done on purpose.
 Describe 'Rate limiting (EAGAIN)' {

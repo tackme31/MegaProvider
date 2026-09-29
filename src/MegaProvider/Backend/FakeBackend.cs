@@ -12,6 +12,8 @@ public sealed class FakeBackend : IMegaBackend
         public DateTime Modified = DateTime.Now;
         public Node? Parent;
         public Node? RestoreParent;
+        public DateTime? LinkCreated; // non-null while the node has a public link
+        public DateTime? LinkExpires;
         public List<Node> Children = new();
 
         public MegaItem ToItem() => new(Handle, Name, IsFolder, Size, Modified);
@@ -156,6 +158,47 @@ public sealed class FakeBackend : IMegaBackend
         throw new NotSupportedException("The fake backend does not simulate downloads.");
 
     public void CancelTransfer() { }
+
+    public MegaLink? GetLink(string path) => Resolve(path) is { LinkCreated: not null } n ? LinkOf(n) : null;
+
+    public IReadOnlyList<MegaLink> ListLinks() =>
+        Descendants(_root).Where(n => n.LinkCreated is not null).Select(LinkOf).ToList();
+
+    public MegaLink Publish(string path) => Change(() =>
+    {
+        var n = Require(path);
+        n.LinkCreated ??= DateTime.Now;
+        return LinkOf(n);
+    });
+
+    // MEGAPROVIDER_FAKE_PRO=1 makes the account a paid one. Like the server, the fake refuses an expiry
+    // on a free account itself; a password it would compute anyway, as the SDK does.
+    public MegaLink Publish(string path, DateTime? expiresAt) => Change(() =>
+    {
+        if (expiresAt is not null && !HasPaidPlan()) throw new MegaProPlanRequiredException("Link expiry dates");
+        var n = Require(path);
+        n.LinkCreated ??= DateTime.Now;
+        n.LinkExpires = expiresAt;
+        return LinkOf(n);
+    });
+
+    public void Unpublish(string path) => Change(() =>
+    {
+        var n = Require(path);
+        (n.LinkCreated, n.LinkExpires) = (null, null);
+        return true;
+    });
+
+    public string ProtectLink(string url, string password) =>
+        "https://mega.nz/#P!" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{password}:{url}"));
+
+    public bool HasPaidPlan() => Environment.GetEnvironmentVariable("MEGAPROVIDER_FAKE_PRO") == "1";
+
+    private MegaLink LinkOf(Node n) => new(PathOf(n), n.Handle, n.Name, n.IsFolder,
+        $"https://mega.nz/{(n.IsFolder ? "folder" : "file")}/{n.Handle}#key-{n.Handle}",
+        n.LinkCreated, n.LinkExpires, n.LinkExpires < DateTime.Now, false);
+
+    private static IEnumerable<Node> Descendants(Node n) => n.Children.SelectMany(c => Descendants(c).Prepend(c));
 
     private static void Reparent(Node n, Node newParent)
     {

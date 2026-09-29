@@ -109,6 +109,15 @@ Json entriesToJson(const std::vector<FileEntry>& entries)
     return list;
 }
 
+Json linkToJson(const LinkDetails& d)
+{
+    return {{"url", d.url},
+            {"created", d.created},
+            {"expires", d.expires},
+            {"expired", d.expired},
+            {"takenDown", d.takenDown}};
+}
+
 const char* kindName(ViewKind kind)
 {
     switch (kind)
@@ -209,6 +218,18 @@ Json Service::dispatch(const std::string& op, const Json& args, const Emit& emit
         return upload(args, emit);
     if (op == "download")
         return download(args, emit);
+    if (op == "link")
+        return link(args);
+    if (op == "links")
+        return links();
+    if (op == "export")
+        return exportLink(args);
+    if (op == "unexport")
+        return unexport(args);
+    if (op == "protectLink")
+        return protectLink(args);
+    if (op == "plan")
+        return plan();
     if (op == "shutdown")
     {
         mStopRequested = true;
@@ -461,4 +482,82 @@ Json Service::download(const Json& args, const Emit& emit)
         mClient.download(handle, local, id, std::ref(relay), std::move(done));
     }));
     return {{"local", outcome.localPath}};
+}
+
+Json Service::link(const Json& args)
+{
+    requireReady();
+    const LinkDetails details = unwrap(mClient.getLinkDetails(requireHandle(args, "handle")));
+    return details.exported ? linkToJson(details) : Json(nullptr);
+}
+
+Json Service::links()
+{
+    requireReady();
+    auto entries = unwrap(await<std::vector<FileEntry>>([&](auto done) {
+        mClient.listPublicLinks(SortOrder{}, {}, SearchFilter{}, std::move(done));
+    }));
+    Json list = Json::array();
+    for (const auto& e : entries)
+    {
+        const LinkDetails details = unwrap(mClient.getLinkDetails(e.handle));
+        if (!details.exported)
+            continue;
+        auto segments = unwrap(await<std::vector<PathSegment>>([&](auto done) {
+            mClient.getPath(e.handle, false, std::move(done));
+        }));
+        Json names = Json::array();
+        for (std::size_t i = 1; i < segments.size(); ++i)
+            names.push_back(segments[i].name);
+        Json item = entryToJson(e);
+        item["names"] = names;
+        item["link"] = linkToJson(details);
+        list.push_back(std::move(item));
+    }
+    return list;
+}
+
+Json Service::exportLink(const Json& args)
+{
+    requireReady();
+    const std::uint64_t handle = requireHandle(args, "handle");
+    const bool setExpiry = args.contains("expires") && !args["expires"].is_null();
+    const std::int64_t expires = setExpiry ? args["expires"].get<std::int64_t>() : 0;
+    const std::string url = unwrap(await<std::string>([&](auto done) {
+        if (setExpiry)
+            mClient.setLinkExpiry(handle, expires, std::move(done));
+        else
+            mClient.exportNode(handle, std::move(done));
+    }));
+    // The request's own answer wins over the node, which may not have caught up with it yet.
+    LinkDetails details = unwrap(mClient.getLinkDetails(handle));
+    details.url = url;
+    if (setExpiry)
+        details.expires = expires;
+    return linkToJson(details);
+}
+
+Json Service::unexport(const Json& args)
+{
+    requireReady();
+    const std::uint64_t handle = requireHandle(args, "handle");
+    unwrap(await<void>([&](auto done) { mClient.disableExport(handle, std::move(done)); }));
+    return Json::object();
+}
+
+Json Service::protectLink(const Json& args)
+{
+    requireReady();
+    const std::string url = requireString(args, "url");
+    const std::string password = requireString(args, "password");
+    return {{"url", unwrap(await<std::string>([&](auto done) {
+                 mClient.encryptLinkWithPassword(url, password, std::move(done));
+             }))}};
+}
+
+Json Service::plan()
+{
+    requireReady();
+    const AccountInfo info = unwrap(await<AccountInfo>([&](auto done) { mClient.getAccountInfo(std::move(done)); }));
+    return {{"proLevel", info.proLevel}};
 }

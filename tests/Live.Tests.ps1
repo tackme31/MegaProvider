@@ -196,6 +196,52 @@ Describe 'Copying' {
     }
 }
 
+Describe 'Public links' {
+    AfterAll { Get-MegaLink $R -Recurse | Unpublish-MegaItem }
+
+    It 'creates a link for a file and a folder, and returns the same one again' {
+        $file = Publish-MegaItem "$R\A.txt"
+        $file.Url | Should -Match '^https://mega\.nz/file/[^#]+#.+'
+        $file.UrlWithoutKey + '#' + $file.Key | Should -Be $file.Url
+        $file.ExpiresAt | Should -BeNullOrEmpty
+        ([datetime]::Now - $file.Created).Duration() | Should -BeLessThan ([timespan]::FromHours(1))
+        (Publish-MegaItem "$R\A.txt").Url | Should -Be $file.Url
+        (Publish-MegaItem "$R\moved").Url | Should -Match '^https://mega\.nz/folder/[^#]+#.+'
+    }
+
+    It 'lists the links under a folder, and all of them' {
+        (Get-MegaLink "$R\A.txt").Url | Should -Be (Publish-MegaItem "$R\A.txt").Url
+        (Get-MegaLink $R -Recurse).Name | Sort-Object | Should -Be @('A.txt', 'moved')
+        (Get-MegaLink).Path | Should -Contain (P "$R\moved")
+    }
+
+    It 'removes a link through the pipeline' {
+        Get-MegaLink "$R\moved" | Unpublish-MegaItem
+        Get-MegaLink "$R\moved" | Should -BeNullOrEmpty
+        (Get-MegaLink $R -Recurse).Name | Should -Be 'A.txt'
+    }
+
+    It 'refuses an expiry or a password on the free plan' {
+        $pipe = & "$PSScriptRoot/../scripts/Get-HostPipeName.ps1"
+        if ((Invoke-HostRequest $pipe plan).proLevel -ne 0) { Set-ItResult -Skipped -Because 'the test account is on a paid plan' }
+        { Publish-MegaItem "$R\trip_0002.jpg" -ExpiresAt (Get-Date).AddDays(1) -ErrorAction Stop } | Should -Throw '*Pro plan*'
+        $password = ConvertTo-SecureString 'secret' -AsPlainText -Force
+        { Publish-MegaItem "$R\trip_0002.jpg" -Password $password -ErrorAction Stop } | Should -Throw '*Pro plan*'
+        Get-MegaLink "$R\trip_0002.jpg" | Should -BeNullOrEmpty
+        # The server's own refusal, which HostBackend turns into the same error if the module's check is ever wrong.
+        $handle = (Get-Item "$R\A.txt").Handle
+        $expires = [DateTimeOffset]::Now.AddDays(1).ToUnixTimeSeconds()
+        { Invoke-HostRequest $pipe export @{ handle = $handle; expires = $expires } } | Should -Throw '*Access denied*'
+        (Get-MegaLink "$R\A.txt").ExpiresAt | Should -BeNullOrEmpty
+    }
+
+    It 'computes a password-protected link in the host (not handed out: the module allows it on paid plans only)' {
+        $pipe = & "$PSScriptRoot/../scripts/Get-HostPipeName.ps1"
+        $url = (Get-MegaLink "$R\A.txt").Url
+        (Invoke-HostRequest $pipe protectLink @{ url = $url; password = 'secret' }).url | Should -BeLike 'https://mega.nz/#P!*'
+    }
+}
+
 Describe 'The SDK host' {
     It 'comes back by itself after being killed' {
         Get-Process megaprovider-host | Stop-Process -Force

@@ -43,6 +43,7 @@ src/MegaProvider/
   MegaCloudProvider.cs     プロバイダ本体。PowerShell のパス ⇔ MEGA のパスの変換はここだけ
   AccountCommands.cs       Connect- / Get- / Disconnect-MegaAccount
   ItemCommands.cs          Send- / Receive-MegaItem、Get-MegaRubbishItem、Restore-MegaItem
+  LinkCommands.cs          Publish- / Unpublish-MegaItem、Get-MegaLink（公開リンク）
   MegaProvider.format.ps1xml  ls の表示（ビルド出力へコピーされる）
   MegaProvider.types.ps1xml   FileInfo と同じ名前のプロパティ（Length、LastWriteTime、Mode）
   Backend/IMegaBackend.cs  バックエンドと認証の境界。パスは '/' 区切りでルート相対（"" がルート）

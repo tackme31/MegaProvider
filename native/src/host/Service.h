@@ -43,6 +43,12 @@ private:
     Json trash(const Json& args);
     Json upload(const Json& args, const Emit& emit);
     Json download(const Json& args, const Emit& emit);
+    Json link(const Json& args);
+    Json links();
+    Json exportLink(const Json& args);
+    Json unexport(const Json& args);
+    Json protectLink(const Json& args);
+    Json plan();
 
     void requireReady() const;
     void dropSession(); // local logout; caller holds mAuthMutex

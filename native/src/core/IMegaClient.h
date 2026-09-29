@@ -3,6 +3,7 @@
 #include "DownloadOutcome.h"
 #include "FileEntry.h"
 #include "FolderInfo.h"
+#include "LinkDetails.h"
 #include "NodeInfo.h"
 #include "PathSegment.h"
 #include "RestoreTarget.h"
@@ -399,6 +400,9 @@ public:
     // trip: -1 when the node has no link at all, 0 when the link never expires,
     // otherwise Unix seconds.
     virtual Result<std::int64_t> getLinkExpiry(std::uint64_t handle) const = 0;
+
+    // Everything about the node's public link, as a local read like getLinkExpiry.
+    virtual Result<LinkDetails> getLinkDetails(std::uint64_t handle) const = 0;
 
     // Wraps an existing public link (key included) into MEGA's password-protected
     // `#P!` form. Computed locally with nothing stored on MEGA, so the original link

@@ -17,6 +17,7 @@
   - `QMetaObject::invokeMethod` での GUI スレッドへの受け渡し → ワーカースレッドのまま `onDone` を呼ぶ
   - `qCWarning` などのログ → `app/Logging.h`
   - `MegaSdkClient::localLogout` を追加（サーバー側のセッションを無効にせずに手放す）
+  - `IMegaClient::getLinkDetails`（`core/LinkDetails.h`）を追加（公開リンクの情報をまとめて読む）
 - MegaExplorer 側で直したことは手で取り込む。コピーした時点は MegaExplorer の SDK v10.17.0 のころ。
 - `native/third_party/sdk`（MEGA SDK v10.17.0）と `native/third_party/vcpkg` は submodule で、
   MegaExplorer と同じコミット。vcpkg のバイナリキャッシュ（`%LOCALAPPDATA%\vcpkg\archives`）が共有される。
@@ -104,7 +105,7 @@
 - ハンドルは MEGA の 8 文字の base64（Web 版や MEGAcmd の `H:xxxxxxxx` と同じ）。フォルダの引数で
   `null` や省略はクラウドドライブのルート。
 - `mtime` は Unix 時間（秒）。
-- エラーコード: 負の値は SDK の `MegaError`（-3 EAGAIN、-9 ENOENT、-12 EEXIST、-13 EINCOMPLETE＝転送の中断、
+- エラーコード: 負の値は SDK の `MegaError`（-3 EAGAIN、-9 ENOENT、-11 EACCESS、-12 EEXIST、-13 EINCOMPLETE＝転送の中断、
   -26 2FA が必要）。正の値はホスト独自（1 要求の形が不正、2 ログインしていない）。
 - **転送の中断は、クライアントが接続を切ることで伝える**。ホストは進捗を書けなくなった時点で転送を取り消す。
 
@@ -125,4 +126,10 @@
 | `trash` | `{handle}` | ゴミ箱へ移す |
 | `upload` | `{local, parent?}` | 進捗の行のあと `{handle}`。同名のファイルがあれば版が積まれる |
 | `download` | `{handle, local}` | 進捗の行のあと `{local}`（名前が埋まっていれば ` (1)` が付いた実際のパス） |
+| `link` | `{handle}` | 公開リンク `{url, created, expires, expired, takenDown}`、無ければ `null`。`url` は鍵付き、`expires` の 0 は無期限。手元の読み取りだけ |
+| `links` | — | クラウドドライブの公開リンクすべて。`list` の項目に `names`（`path` と同じ）と `link` を足したもの。ゴミ箱の中のものは除く |
+| `export` | `{handle, expires?}` | リンクを作る（あれば同じものを返す）。`expires` を省くか `null` なら今の期限を保ち、0 は無期限。無料プランで期限を付けると -11（EACCESS） |
+| `unexport` | `{handle}` | リンクを消す。リンクが無くても成功 |
+| `protectLink` | `{url, password}` | `{url}`（`#P!` の形）。手元の計算だけで、MEGA には何も残らない。モジュールは有料プランでしか使わない |
+| `plan` | — | `{proLevel}`（0 が無料プラン）。サーバーへの問い合わせ |
 | `shutdown` | — | 応答を返してから終了する |

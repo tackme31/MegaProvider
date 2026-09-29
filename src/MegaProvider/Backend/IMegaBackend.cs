@@ -2,6 +2,10 @@ namespace MegaProvider.Backend;
 
 public sealed record MegaItem(string Handle, string Name, bool IsFolder, long Size, DateTime Modified);
 
+/// <summary>A node's public link. <paramref name="Url"/> carries the key; Created is null when MEGA does not know it.</summary>
+public sealed record MegaLink(string Path, string Handle, string Name, bool IsFolder, string Url,
+    DateTime? Created, DateTime? ExpiresAt, bool IsExpired, bool IsTakenDown);
+
 /// <summary>
 /// Paths are '/'-separated and relative to the cloud root ("" is the root).
 /// MEGA allows same-named siblings, so a path can match several nodes; path-based calls take the first.
@@ -47,6 +51,33 @@ public interface IMegaBackend
     /// throws <see cref="OperationCanceledException"/>. No-op where transfers cannot be cancelled.
     /// </summary>
     void CancelTransfer();
+
+    /// <summary>The item's public link, or null when it has none.</summary>
+    MegaLink? GetLink(string path);
+
+    /// <summary>Every public link in the Cloud Drive (not the Rubbish Bin).</summary>
+    IReadOnlyList<MegaLink> ListLinks();
+
+    /// <summary>Creates the item's public link, or returns the one it has, keeping its expiry.</summary>
+    MegaLink Publish(string path);
+
+    /// <summary>
+    /// Like <see cref="Publish"/>, but sets the expiry (null = never).
+    /// Throws <see cref="MegaProPlanRequiredException"/> on a free account.
+    /// </summary>
+    MegaLink Publish(string path, DateTime? expiresAt);
+
+    /// <summary>Removes the item's public link. No-op when it has none.</summary>
+    void Unpublish(string path);
+
+    /// <summary>
+    /// MEGA's password-protected (#P!) form of a link. Computed locally: nothing is stored on MEGA,
+    /// the original link stays valid, and nothing can tell later that it was made.
+    /// </summary>
+    string ProtectLink(string url, string password);
+
+    /// <summary>Whether the account is on a paid plan (link expiry and passwords need one).</summary>
+    bool HasPaidPlan();
 }
 
 public enum LoginStage { LoggingIn, Loading, Downloading, Building }
@@ -95,6 +126,9 @@ public static class NameMatch
 public sealed class MegaItemNotFoundException(string message) : Exception(message);
 
 public sealed class MegaAmbiguousPathException(string message) : Exception(message);
+
+public sealed class MegaProPlanRequiredException(string feature)
+    : Exception($"{feature} need a MEGA Pro plan; this account is on the free plan.");
 
 public sealed class MegaAuthCodeRequiredException()
     : Exception("This account uses two-factor authentication. Give the code from the authenticator app with -AuthCode.");

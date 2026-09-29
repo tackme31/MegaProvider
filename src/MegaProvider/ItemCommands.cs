@@ -77,6 +77,7 @@ public abstract class MegaItemCommandBase : PSCmdlet
             {
                 MegaItemNotFoundException => ErrorCategory.ObjectNotFound,
                 MegaAmbiguousPathException => ErrorCategory.InvalidArgument,
+                MegaProPlanRequiredException => ErrorCategory.PermissionDenied,
                 _ => ErrorCategory.NotSpecified,
             };
             WriteError(new ErrorRecord(e, e.GetType().Name, category, target));
