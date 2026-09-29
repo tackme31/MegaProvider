@@ -99,12 +99,22 @@ gh release create vX.Y.Z --verify-tag --title "vX.Y.Z" --notes-file <一時フ�
 既定の動作の変化、セッションなど保存しているファイルの形式、要求環境（PowerShell や glibc の版）。
 各項目は「何が変わったか」と「どう書き換えればよいか」を 1 行で。無ければ節ごと省く。
 
+**既知の問題は `### Known issues` に列挙する。** 元は `docs/COMMANDS.md` の「4. 既知の問題」。そこから
+利用者が踏みうるもの（誤動作、誤解を招く表示、止まったように見えるなど）を選び、「どんなときに・何が起きるか」と、
+回避策があればそれを 1 行で書く。内部の事情（原因のコードや直し方の案）は書かない。PowerShell 側の制約で
+直せないものは "(PowerShell limitation)" と添える。この版で直したものは Known issues から外し、変化の行に
+"Fixed: ..." として書く。「4.」が空なら節ごと省く。
+
 ````
 <変化の 1〜2 行>
 
 ### Breaking changes
 
 - `<何が変わったか>` — <どう書き換えればよいか>
+
+### Known issues
+
+- <どんなときに・何が起きるか>. <回避策があれば>
 
 PowerShell 7.4 or later on Windows x64, or Linux x64 with glibc 2.35 or later.
 
