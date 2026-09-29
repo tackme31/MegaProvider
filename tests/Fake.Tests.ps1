@@ -67,6 +67,9 @@ Describe 'Navigation' {
         (Get-Item mega:\docs\readme.txt).Mode | Should -Be '-'
         $item = Get-Item mega:\docs\readme.txt
         $item.LastWriteTime | Should -Be $item.Modified
+        $item.FullName | Should -Be (P 'mega:\docs\readme.txt')
+        (Get-ChildItem mega:\photos -Recurse -File)[0].FullName | Should -Be (P 'mega:\photos\2024\IMG_0001.jpg')
+        Get-Item $item.FullName | Should -Not -BeNullOrEmpty
     }
 
     It 'tells favourites, labels and creation times' {

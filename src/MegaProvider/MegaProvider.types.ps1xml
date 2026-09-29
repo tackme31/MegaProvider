@@ -15,6 +15,11 @@
         <Name>LastWriteTime</Name>
         <ReferencedMemberName>Modified</ReferencedMemberName>
       </AliasProperty>
+      <!-- mega:\photos\a.jpg. The drive's root is "", so PSPath lacks the drive. Rubbish Bin items have no PSPath: $null. -->
+      <ScriptProperty>
+        <Name>FullName</Name>
+        <GetScriptBlock>if ($this.PSPath) { $this.PSDrive.Name + ':' + [IO.Path]::DirectorySeparatorChar + ($this.PSPath -replace '^.*?::', '') }</GetScriptBlock>
+      </ScriptProperty>
       <ScriptProperty>
         <Name>Mode</Name>
         <GetScriptBlock>if ($this.IsFolder) { 'd' } else { '-' }</GetScriptBlock>

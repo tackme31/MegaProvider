@@ -17,3 +17,5 @@
   `Label`（色ラベル）。`Where-Object` で絞れる。
 - 追加: `Set-ItemProperty` / `Clear-ItemProperty` でお気に入りと色ラベルを付け外しできる
   （`ls mega:\photos -Filter *.jpg | Set-ItemProperty -Name Label -Value Red`）。`Get-ItemProperty` も使える。
+- 追加: `mega:` の項目に `FullName`（`mega:\photos\a.jpg` の形。ファイルシステムの `FullName` と同じように
+  そのまま他のコマンドへ渡せる）。

@@ -17,7 +17,8 @@ LONG DESCRIPTION
             Rename-Item -NewName { $_.Name -replace '^IMG_', 'trip_' }
 
     Items have the file system's property names (Length, LastWriteTime,
-    CreationTime, Mode), so filters written for files work unchanged. A
+    CreationTime, Mode, FullName), so filters written for files work
+    unchanged. FullName is the path on the drive (mega:\photos\a.jpg). A
     folder's Length is $null. LastWriteTime is the file's own time, kept from
     the computer it was uploaded from; CreationTime is when it was put on
     MEGA. Items also have:
