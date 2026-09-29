@@ -330,6 +330,23 @@ Describe 'Rate limiting (EAGAIN)' {
     }
 }
 
+Describe 'Help' {
+    # scripts/Build-HelpFile.ps1 already fails the build on an undocumented parameter; this checks that
+    # Get-Help picks the file up (it falls back to en-US under other UI cultures).
+    It 'has a synopsis, a description and an example for every cmdlet' {
+        foreach ($name in (Get-Module MegaProvider).ExportedCmdlets.Keys) {
+            $help = Get-Help $name -Full
+            $help.Synopsis | Should -Not -BeLike "*$name*" -Because "$name should have its own synopsis"
+            $help.Description | Should -Not -BeNullOrEmpty -Because $name
+            $help.Examples.Example | Should -Not -BeNullOrEmpty -Because $name
+        }
+    }
+
+    It 'has the about topic' {
+        Get-Help about_MegaProvider | Should -BeLike '*HOW MEGA DIFFERS FROM A FILE SYSTEM*'
+    }
+}
+
 Describe 'What the fake backend cannot do' {
     It 'rejects transfers' {
         { Send-MegaItem $PSCommandPath mega:\docs -ErrorAction Stop } | Should -Throw '*does not simulate*'

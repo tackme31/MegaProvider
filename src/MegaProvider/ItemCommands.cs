@@ -91,6 +91,7 @@ public abstract class MegaItemCommandBase : PSCmdlet
 public sealed class SendMegaItemCommand : MegaItemCommandBase
 {
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Path", ValueFromPipeline = true)]
+    [SupportsWildcards]
     public string[] Path { get; set; } = [];
 
     [Parameter(Mandatory = true, ParameterSetName = "LiteralPath", ValueFromPipelineByPropertyName = true)]
@@ -135,6 +136,7 @@ public sealed class SendMegaItemCommand : MegaItemCommandBase
 public sealed class ReceiveMegaItemCommand : MegaItemCommandBase
 {
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Path", ValueFromPipeline = true)]
+    [SupportsWildcards]
     public string[] Path { get; set; } = [];
 
     [Parameter(Mandatory = true, ParameterSetName = "LiteralPath", ValueFromPipelineByPropertyName = true)]

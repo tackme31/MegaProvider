@@ -51,8 +51,10 @@ New-Item -ItemType Directory -Force $stage | Out-Null
 foreach ($name in 'MegaProvider.psd1', 'MegaProvider.dll', 'MegaProvider.format.ps1xml', 'MegaProvider.types.ps1xml', $hostName) {
     Copy-Item (Join-Path $outDir $name) $stage
 }
+Copy-Item (Join-Path $outDir 'en-US') $stage -Recurse   # Get-Help (scripts/Build-HelpFile.ps1)
 Copy-Item (Join-Path $root 'LICENSE') $stage
-$required = @('MegaProvider.psd1', 'MegaProvider.dll', 'MegaProvider.format.ps1xml', 'MegaProvider.types.ps1xml', $hostName, 'LICENSE', 'THIRD-PARTY-NOTICES.txt')
+$required = @('MegaProvider.psd1', 'MegaProvider.dll', 'MegaProvider.format.ps1xml', 'MegaProvider.types.ps1xml', $hostName, 'LICENSE', 'THIRD-PARTY-NOTICES.txt',
+    'en-US/MegaProvider.dll-Help.xml', 'en-US/about_MegaProvider.help.txt')
 
 if ($IsWindows) {
     # The host links the CRT dynamically (the SDK's overlay triplet); ship it app-local so
@@ -151,7 +153,7 @@ if ($IsWindows) {
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::OpenRead($package)
-    try { $entries = @($archive.Entries | ForEach-Object { $_.FullName }) } finally { $archive.Dispose() }
+    try { $entries = @($archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') }) } finally { $archive.Dispose() }
 } else {
     $package = Join-Path $artifacts "MegaProvider-$version-linux-x64.tar.gz"
     Remove-Item (Join-Path $artifacts 'MegaProvider-*-linux-x64.tar.gz') -Force -ErrorAction SilentlyContinue
@@ -188,6 +190,8 @@ $m = Get-Module MegaProvider
 if ($m.ModuleBase -notlike "$env:MP_CHECK*") { throw "loaded from $($m.ModuleBase)" }
 if (@($m.ExportedCmdlets.Keys).Count -lt 7) { throw 'cmdlets missing' }
 if (-not @(Get-ChildItem mega:\).Count) { throw 'mega:\ is empty' }
+if (-not (Get-Help Publish-MegaItem).Synopsis.StartsWith('Creates')) { throw 'Get-Help finds no help' }
+if (-not (Get-Help about_MegaProvider)) { throw 'Get-Help finds no about_MegaProvider' }
 'ok'
 '@
 $env:MP_CHECK = $check
@@ -204,4 +208,4 @@ Remove-Item -Recurse -Force $check
 
 $sizeMb = [math]::Round((Get-Item $package).Length / 1MB, 1)
 $glibcNote = $IsLinux ? "; needs glibc $glibc or later" : ''
-Write-Host "$package ($sizeMb MB, $($entries.Count) entries$glibcNote; imported and listed mega:\ on the fake backend)" -ForegroundColor Green
+Write-Host "$package ($sizeMb MB, $($entries.Count) entries$glibcNote; imported, listed mega:\ on the fake backend and read its help)" -ForegroundColor Green

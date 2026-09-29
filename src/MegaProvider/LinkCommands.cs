@@ -63,6 +63,7 @@ public sealed class MegaLinkInfo
 public abstract class MegaPathCommandBase : MegaItemCommandBase
 {
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Path", ValueFromPipeline = true)]
+    [SupportsWildcards]
     public string[] Path { get; set; } = [];
 
     [Parameter(Mandatory = true, ParameterSetName = "LiteralPath", ValueFromPipelineByPropertyName = true)]
@@ -161,6 +162,7 @@ public sealed class UnpublishMegaItemCommand : MegaPathCommandBase
 public sealed class GetMegaLinkCommand : MegaItemCommandBase
 {
     [Parameter(Position = 0, ParameterSetName = "Path", ValueFromPipeline = true)]
+    [SupportsWildcards]
     public string[]? Path { get; set; }
 
     [Parameter(Mandatory = true, ParameterSetName = "LiteralPath", ValueFromPipelineByPropertyName = true)]

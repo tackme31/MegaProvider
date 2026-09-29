@@ -47,6 +47,9 @@ dotnet build (Join-Path $root 'MegaProvider.sln') -c $Configuration -nologo -v q
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $psd1 = Join-Path $root "src/MegaProvider/bin/$Configuration/net8.0/MegaProvider.psd1"
+# In its own pwsh: whatever imports the module keeps its DLL locked.
+pwsh -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'Build-HelpFile.ps1') -ModulePath $psd1
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($NoShell) { $psd1; return }
 $backend = if ($Fake) { "`$env:MEGAPROVIDER_BACKEND = 'fake'; " } else { '' }
 pwsh -NoLogo -NoExit -Command "$backend Import-Module '$psd1'; Set-Location mega:"

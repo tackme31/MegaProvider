@@ -52,11 +52,14 @@ src/MegaProvider/
   Backend/PrivateFiles.cs  本人だけが開けるフォルダ・ファイル（Linux では 0700 / 0600）
   Backend/Host/            megaprovider-host.exe とパイプで話す実装（既定）
   MegaProvider.psd1        モジュールマニフェスト（ビルド出力へコピーされる）
+  Help/                    Get-Help の本文（英語）。cmdlet ごとの説明は MegaProvider.Help.psd1、
+                           mega: ドライブでの標準コマンドの注意は about_MegaProvider.help.txt
 native/                    megaprovider-host（C++、CMake + vcpkg）。src/core・src/mega は MegaExplorer からのコピー
   src/host/Platform_*.cpp  OS ごとの部分（Windows の名前付きパイプ / Unix ドメインソケット）
   third_party/sdk, vcpkg   submodule（MegaExplorer と同じコミット）
 scripts/dev.ps1            ビルドして、モジュールを読み込んだ新しい pwsh を開く
 scripts/test.ps1           ビルドして Pester を流す（スイートごとに新しい pwsh）
+scripts/Build-HelpFile.ps1 Help/ と cmdlet の定義から en-US/MegaProvider.dll-Help.xml を作る（dev.ps1 がビルドのたびに呼ぶ）
 scripts/host-request.ps1   動いているホストへ要求を 1 つ送って応答を見る（プロトコルのデバッグ用）
 scripts/Get-HostPipeName.ps1  ホストの接続先（HostClient.PipeName と同じもの）を返す
 scripts/package.ps1        Release ビルド → artifacts/ に配布物（Windows は zip、Linux は tar.gz）→ 展開して読み込めるか確認。リリースは /release スキル
@@ -127,6 +130,13 @@ dotnet build                     # MegaProvider.sln
 - 中身のあるフォルダを `-Recurse` なしで `Remove-Item` すると PowerShell が確認を求め、非対話では落ちる（テストで注意）。
 - タブ補完（ファイルシステム以外のプロバイダ）は子の名前を辞書のキーにするので、同名の兄弟がいる
   フォルダでは例外になって何も補完されない。PowerShell 側の都合で、プロバイダからは直せない。
+
+## ヘルプ
+
+- cmdlet やパラメーターを足したり挙動を変えたりしたら、`src/MegaProvider/Help/` も直す。構文・パラメーターセット・
+  パイプライン入力は cmdlet の定義から作るので書かない。説明の無いパラメーターがあるとビルドが落ちる。
+- 標準コマンド（`Move-Item` など）の mega: での違いは `about_MegaProvider.help.txt` に書く。
+- 注意点（Notes）には、利用者が踏むと困る MEGA の仕様（同名、版、プランの制限）を書く。
 
 ## コマンドの命名
 

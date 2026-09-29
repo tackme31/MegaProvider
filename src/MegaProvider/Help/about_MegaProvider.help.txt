@@ -1,0 +1,128 @@
+TOPIC
+    about_MegaProvider
+
+SHORT DESCRIPTION
+    The mega: drive: MEGA cloud storage through PowerShell's own commands.
+
+LONG DESCRIPTION
+    After Connect-MegaAccount, the mega: drive shows the account's Cloud Drive.
+    The usual commands work on it, and through the pipeline:
+
+        Set-Location (cd), Get-ChildItem (ls), Get-Item, Test-Path,
+        Rename-Item, Move-Item, Copy-Item, Remove-Item,
+        New-Item -ItemType Directory, Resolve-Path, Split-Path, Join-Path
+
+        Get-ChildItem mega:\photos -Recurse -Filter *.jpg |
+            Rename-Item -NewName { $_.Name -replace '^IMG_', 'trip_' }
+
+    Items have the file system's property names (Length, LastWriteTime, Mode),
+    so filters written for files work unchanged. A folder's Length is $null.
+
+    Every command that changes something supports -WhatIf and -Confirm.
+
+    What the usual commands cannot do has commands of its own:
+
+        Connect-, Get-, Disconnect-MegaAccount   the account
+        Send-MegaItem, Receive-MegaItem          transfers to and from this computer
+        Get-MegaRubbishItem, Restore-MegaItem    the Rubbish Bin
+        Publish-, Unpublish-MegaItem, Get-MegaLink   public links
+
+HOW MEGA DIFFERS FROM A FILE SYSTEM
+  Removing
+    Remove-Item moves items to MEGA's Rubbish Bin. Nothing on the mega: drive
+    is ever deleted permanently: there is no undo, and a script gone wrong
+    should always be recoverable. Get-MegaRubbishItem lists the Rubbish Bin
+    and Restore-MegaItem puts items back. Emptying the Rubbish Bin is left to
+    MEGA's own apps.
+
+    As on the file system, a folder that is not empty needs -Recurse, or
+    PowerShell asks first (and fails in a session without a prompt).
+
+    Remove-Item does not remove an item's public link. See Unpublish-MegaItem.
+
+  Names that already exist
+    MEGA does not replace an item with another of the same name. Depending on
+    the operation it adds a second item with the same name, or stacks a file
+    onto the existing one as a new version. To keep a folder from ending up
+    with two items of one name, these commands refuse a name that is taken:
+
+        Rename-Item     the new name is taken by another item in the folder
+        Move-Item       the destination folder has an item of the same name
+        Copy-Item       the destination has an item of the same name
+        New-Item        a folder of that name exists (MEGA refuses it too)
+
+    Nothing is overwritten; rename or remove the other item first. A rename
+    that only changes the case of a name is allowed.
+
+    Two commands do not refuse:
+
+        Send-MegaItem     an upload with the name of an existing file becomes
+                          a new version of that file
+        Restore-MegaItem  an item restored next to one of the same name is put
+                          there under the same name
+
+  Same-named items
+    MEGA allows two items with the same name in one folder (other apps can
+    create them). A path cannot tell them apart, so on the mega: drive:
+
+      - Reading (ls, cd, Get-Item, Test-Path) shows the first of them.
+      - Changing or transferring through such a path is refused with an
+        "ambiguous" error, for the item and for anything below a folder
+        with a same-named sibling. The other items in a pipeline are still
+        processed.
+
+    Rename one of them in another MEGA app to use it here.
+
+    Tab completion does not work in a folder with same-named items; this is
+    a limitation of PowerShell's completion.
+
+  Case of names
+    MEGA names are case-sensitive. A path that matches no name exactly
+    matches one that differs only in case, so `cd mega:\docs` finds "Docs".
+
+  Moving and copying
+    Move-Item needs an existing folder as the destination.
+
+    Copy-Item copies into an existing folder under the item's own name, or to
+    a new name when the destination does not exist. A folder is always copied
+    with everything in it, so copying a folder needs -Recurse.
+
+    Copy-Item and Move-Item cannot cross between the file system and the
+    mega: drive (PowerShell does not copy across providers). Use
+    Send-MegaItem and Receive-MegaItem.
+
+  Filtering
+    -Filter takes wildcards (* and ?) on the name and ignores case, like
+    -Include does on the file system. -File and -Directory work as usual.
+
+  Too many changes at once
+    MEGA refuses changes that come too fast. Each refused change is retried
+    a few times, over several seconds. If MEGA still refuses, the whole
+    pipeline stops, even with -ErrorAction Continue, and the error names the
+    item it stopped at: the items before it are done, and that item and the
+    ones after it are not.
+
+THE BACKGROUND PROCESS
+    MEGA's file list is loaded by a background process, megaprovider-host,
+    started by the first command. It stays for 60 minutes after the last
+    command, so later commands (in any PowerShell window) answer at once.
+    After it has stopped, the next command logs in again with the saved
+    session, which can take a while on a large account.
+
+    After upgrading MegaProvider, the first command replaces a process left
+    by the previous version. While that process is transferring or logging
+    in for another PowerShell window, commands fail with an error that says
+    so; try again when it finishes.
+
+    It runs as you, and only you can connect to it. Its log is
+    %LOCALAPPDATA%\MegaProvider\host\host.log on Windows and
+    ~/.local/share/MegaProvider/host/host.log on Linux.
+
+SEE ALSO
+    Connect-MegaAccount
+    Send-MegaItem
+    Receive-MegaItem
+    Get-MegaRubbishItem
+    Restore-MegaItem
+    Publish-MegaItem
+    Get-MegaLink
