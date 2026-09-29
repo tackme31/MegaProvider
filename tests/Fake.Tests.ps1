@@ -69,6 +69,33 @@ Describe 'Navigation' {
         $item.LastWriteTime | Should -Be $item.Modified
     }
 
+    It 'narrows by category, below a folder and in it' {
+        $photos = Get-ChildItem mega:\photos -Recurse -Category Photo
+        $photos.Name | Should -Be @('IMG_0001.jpg', 'IMG_0002.jpg', 'IMG_0003.jpg', 'IMG_0004.jpg', 'IMG_0005.jpg')
+        $photos[0].PSPath | Should -BeLike (P '*::photos\2024\IMG_0001.jpg')
+        Get-ChildItem mega:\photos -Category Photo | Should -BeNullOrEmpty   # only a folder directly in it
+        (Get-ChildItem mega:\docs -Category Document).Name | Should -Be @('readme.txt', 'notes.txt')
+        Get-ChildItem mega:\ -Recurse -Category Pdf | Should -BeNullOrEmpty
+    }
+
+    It 'lists favourites, files and folders' {
+        $paths = (Get-ChildItem mega:\ -Recurse -Favorite).PSPath
+        $paths | Should -HaveCount 2
+        $paths[0] | Should -BeLike (P '*::docs\readme.txt')
+        $paths[1] | Should -BeLike (P '*::photos\2024')
+        (Get-ChildItem mega:\ -Recurse -Favorite -Directory).Name | Should -Be '2024'
+        Get-ChildItem mega:\ -Favorite | Should -BeNullOrEmpty
+    }
+
+    It 'combines them with -Filter and -Name, and pipes on' {
+        (Get-ChildItem mega:\photos -Recurse -Category Photo -Filter *0002*).Name | Should -Be 'IMG_0002.jpg'
+        Get-ChildItem mega:\photos -Recurse -Category Photo -Name | Should -Be @(
+            (P '2024\IMG_0001.jpg'), (P '2024\IMG_0002.jpg'), (P '2024\IMG_0003.jpg'), (P '2024\IMG_0004.jpg'), (P '2024\IMG_0005.jpg'))
+        Get-ChildItem mega:\ -Recurse -Favorite -File | Rename-Item -NewName fav.txt
+        Test-Path mega:\docs\fav.txt | Should -BeTrue
+        Rename-Item mega:\docs\fav.txt -NewName readme.txt
+    }
+
     It 'formats listings like the file system, grouped by folder' {
         $text = Get-ChildItem mega:\docs | Out-String -Width 120
         # PowerShell's own header format is localized: "Folder: x" in English, "Folder:x" in Japanese.

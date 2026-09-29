@@ -21,6 +21,26 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
 
     public IReadOnlyList<MegaItem> List(string folderPath) => ListChildren(RequireFolder(folderPath));
 
+    public IReadOnlyList<(string RelativePath, MegaItem Item)> Search(string folderPath, bool recurse, MegaCategory? category, bool favoritesOnly)
+    {
+        var chain = RequireChain(folderPath);
+        if (!chain[^1].IsFolder) throw new InvalidOperationException($"'{folderPath}' is not a folder.");
+        var results = Call("search", new
+        {
+            handle = HandleOrNull(chain[^1]),
+            recursive = recurse,
+            category = category?.ToString().ToLowerInvariant(),
+            favourite = favoritesOnly,
+        })!.AsArray();
+        // A recursive search reports root-relative names; the folder's own part is dropped.
+        return results.Select(n =>
+        {
+            var item = ToItem(n!);
+            var path = recurse ? string.Join('/', n!["names"]!.AsArray().Skip(chain.Count - 1).Select(x => x!.GetValue<string>())) : item.Name;
+            return (path, item);
+        }).ToList();
+    }
+
     public MegaItem CreateFolder(string parentPath, string name)
     {
         CheckName(name);
@@ -159,7 +179,7 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
 
     private JsonNode? Call(string op, object? args = null, Action<long, long>? progress = null)
     {
-        if (op is not ("list" or "rubbish" or "path" or "restoreTarget" or "link" or "links" or "protectLink" or "plan"))
+        if (op is not ("list" or "search" or "rubbish" or "path" or "restoreTarget" or "link" or "links" or "protectLink" or "plan"))
             lock (_listings) _listings.Clear();
         auth.EnsureSession();
         var relay = progress is null ? null : (Action<JsonObject>)(p => progress(p["done"]!.GetValue<long>(), p["total"]!.GetValue<long>()));

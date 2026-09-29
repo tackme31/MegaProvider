@@ -119,6 +119,35 @@ Json linkToJson(const LinkDetails& d)
             {"takenDown", d.takenDown}};
 }
 
+// Root excluded: the names from the Cloud Drive (or Rubbish Bin) root down to the node.
+Json namesFrom(const std::vector<PathSegment>& segments)
+{
+    Json names = Json::array();
+    for (std::size_t i = 1; i < segments.size(); ++i)
+        names.push_back(segments[i].name);
+    return names;
+}
+
+SearchCategory parseCategory(const std::string& name)
+{
+    static const std::pair<const char*, SearchCategory> kCategories[] = {
+        {"photo", SearchCategory::Photo},
+        {"audio", SearchCategory::Audio},
+        {"video", SearchCategory::Video},
+        {"document", SearchCategory::Document},
+        {"pdf", SearchCategory::Pdf},
+        {"presentation", SearchCategory::Presentation},
+        {"spreadsheet", SearchCategory::Spreadsheet},
+        {"archive", SearchCategory::Archive},
+        {"program", SearchCategory::Program},
+        {"other", SearchCategory::Other},
+    };
+    for (const auto& [text, category] : kCategories)
+        if (name == text)
+            return category;
+    throw HostError(kBadRequest, "unknown category '" + name + "'");
+}
+
 const char* kindName(ViewKind kind)
 {
     switch (kind)
@@ -211,6 +240,8 @@ Json Service::dispatch(const std::string& op, const Json& args, const Emit& emit
         return logout();
     if (op == "list")
         return list(args);
+    if (op == "search")
+        return search(args);
     if (op == "rubbish")
         return rubbish();
     if (op == "path")
@@ -394,6 +425,33 @@ Json Service::list(const Json& args)
     return entriesToJson(entries);
 }
 
+Json Service::search(const Json& args)
+{
+    requireReady();
+    const FolderRef folder = optionalFolder(args, "handle");
+    const bool recursive = args.value("recursive", false);
+    SearchFilter filter;
+    filter.thisFolderOnly = !recursive;
+    filter.favouritesOnly = args.value("favourite", false);
+    const std::string category = optionalString(args, "category");
+    if (!category.empty())
+        filter.category = parseCategory(category);
+    auto entries = unwrap(await<std::vector<FileEntry>>([&](auto done) {
+        mClient.search(folder.handle, folder.isRoot, {}, filter, SortOrder{}, std::move(done));
+    }));
+    if (!recursive)
+        return entriesToJson(entries);
+    // Below the folder, so each result needs its path; `names` is root-relative, as in `path`.
+    Json list = Json::array();
+    for (const auto& e : entries)
+    {
+        Json item = entryToJson(e);
+        item["names"] = namesOf(e.handle);
+        list.push_back(std::move(item));
+    }
+    return list;
+}
+
 Json Service::rubbish()
 {
     requireReady();
@@ -403,19 +461,20 @@ Json Service::rubbish()
     return entriesToJson(entries);
 }
 
+std::vector<PathSegment> Service::segmentsOf(std::uint64_t handle)
+{
+    return unwrap(await<std::vector<PathSegment>>([&](auto done) { mClient.getPath(handle, false, std::move(done)); }));
+}
+
+Json Service::namesOf(std::uint64_t handle) { return namesFrom(segmentsOf(handle)); }
+
 Json Service::path(const Json& args)
 {
     requireReady();
     const std::uint64_t handle = requireHandle(args, "handle");
-    auto segments = unwrap(await<std::vector<PathSegment>>([&](auto done) {
-        mClient.getPath(handle, false, std::move(done));
-    }));
-    // Root-first, root included; the root's kind says whether the node is in the Cloud
-    // Drive or the Rubbish Bin.
-    Json names = Json::array();
-    for (std::size_t i = 1; i < segments.size(); ++i)
-        names.push_back(segments[i].name);
-    return {{"root", segments.empty() ? "other" : kindName(segments.front().kind)}, {"names", names}};
+    // The root's kind says whether the node is in the Cloud Drive or the Rubbish Bin.
+    const auto segments = segmentsOf(handle);
+    return {{"root", segments.empty() ? "other" : kindName(segments.front().kind)}, {"names", namesFrom(segments)}};
 }
 
 Json Service::restoreTarget(const Json& args)
@@ -523,14 +582,8 @@ Json Service::links()
         const LinkDetails details = unwrap(mClient.getLinkDetails(e.handle));
         if (!details.exported)
             continue;
-        auto segments = unwrap(await<std::vector<PathSegment>>([&](auto done) {
-            mClient.getPath(e.handle, false, std::move(done));
-        }));
-        Json names = Json::array();
-        for (std::size_t i = 1; i < segments.size(); ++i)
-            names.push_back(segments[i].name);
         Json item = entryToJson(e);
-        item["names"] = names;
+        item["names"] = namesOf(e.handle);
         item["link"] = linkToJson(details);
         list.push_back(std::move(item));
     }

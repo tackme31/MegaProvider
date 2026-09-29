@@ -4,9 +4,11 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <vector>
 #include <nlohmann/json.hpp>
 
 class MegaSdkClient;
+struct PathSegment;
 
 using Json = nlohmann::json;
 
@@ -36,6 +38,7 @@ private:
     Json resume(const Json& args, const Emit& emit);
     Json logout();
     Json list(const Json& args);
+    Json search(const Json& args);
     Json rubbish();
     Json path(const Json& args);
     Json restoreTarget(const Json& args);
@@ -54,6 +57,8 @@ private:
     Json plan();
 
     void requireReady() const;
+    std::vector<PathSegment> segmentsOf(std::uint64_t handle);
+    Json namesOf(std::uint64_t handle);
     void dropSession(); // local logout; caller holds mAuthMutex
     void fetchNodes(const Emit& emit);
     std::string email() const;

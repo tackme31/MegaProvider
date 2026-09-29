@@ -110,6 +110,14 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
     {
         [Parameter] public SwitchParameter File { get; set; }
         [Parameter] public SwitchParameter Directory { get; set; }
+
+        /// <summary>Only files of this kind, as MEGA classifies them by extension.</summary>
+        [Parameter] public MegaCategory? Category { get; set; }
+
+        /// <summary>Only items marked as favourites.</summary>
+        [Parameter] public SwitchParameter Favorite { get; set; }
+
+        internal bool NarrowsByIndex => Category is not null || Favorite;
     }
 
     protected override object GetChildItemsDynamicParameters(string path, bool recurse) => new ChildItemsParameters();
@@ -130,6 +138,17 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
 
     protected override void GetChildItems(string path, bool recurse)
     {
+        // Category and favourites are MEGA's own index: one search, not a walk of every folder.
+        if (DynamicParameters is ChildItemsParameters { NarrowsByIndex: true } p)
+        {
+            foreach (var (relative, item) in Backend.Search(ToMegaPath(path), recurse, p.Category, p.Favorite))
+            {
+                if (Stopping) return;
+                if (ShouldWrite(item))
+                    WriteItemObject(item, MakePath(path, ToProviderPath(relative)), item.IsFolder);
+            }
+            return;
+        }
         foreach (var child in Backend.List(ToMegaPath(path)))
         {
             if (Stopping) return;
@@ -141,10 +160,16 @@ public sealed class MegaCloudProvider : NavigationCmdletProvider
         }
     }
 
+    // With -Recurse, PowerShell calls this per folder: once for the names to show, once with
+    // ReturnAllContainers for the folders to descend into, which must not be narrowed.
     protected override void GetChildNames(string path, ReturnContainers returnContainers)
     {
+        var matching = DynamicParameters is ChildItemsParameters { NarrowsByIndex: true } p
+            ? Backend.Search(ToMegaPath(path), false, p.Category, p.Favorite).Select(r => r.Item.Handle).ToHashSet()
+            : null;
         foreach (var child in Backend.List(ToMegaPath(path)))
-            if (returnContainers == ReturnContainers.ReturnAllContainers && child.IsFolder || ShouldWrite(child))
+            if (returnContainers == ReturnContainers.ReturnAllContainers && child.IsFolder
+                || ShouldWrite(child) && (matching is null || matching.Contains(child.Handle)))
                 WriteItemObject(child.Name, MakePath(path, child.Name), child.IsFolder);
     }
 

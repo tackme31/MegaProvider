@@ -2,6 +2,9 @@ namespace MegaProvider.Backend;
 
 public sealed record MegaItem(string Handle, string Name, bool IsFolder, long Size, DateTime Modified);
 
+/// <summary>MEGA's file categories, decided by MEGA from the file name's extension.</summary>
+public enum MegaCategory { Photo, Audio, Video, Document, Pdf, Presentation, Spreadsheet, Archive, Program, Other }
+
 /// <summary>A node's public link. <paramref name="Url"/> carries the key; Created is null when MEGA does not know it.</summary>
 public sealed record MegaLink(string Path, string Handle, string Name, bool IsFolder, string Url,
     DateTime? Created, DateTime? ExpiresAt, bool IsExpired, bool IsTakenDown);
@@ -16,6 +19,13 @@ public interface IMegaBackend
 {
     MegaItem? Get(string path);
     IReadOnlyList<MegaItem> List(string folderPath);
+
+    /// <summary>
+    /// The folder's children, or with <paramref name="recurse"/> everything below it, narrowed by MEGA's
+    /// own index: only files of <paramref name="category"/> (when given), only favourites (when asked).
+    /// RelativePath is '/'-separated from the folder, so a child's is its name.
+    /// </summary>
+    IReadOnlyList<(string RelativePath, MegaItem Item)> Search(string folderPath, bool recurse, MegaCategory? category, bool favoritesOnly);
     MegaItem CreateFolder(string parentPath, string name);
     MegaItem Rename(string path, string newName);
     MegaItem Move(string path, string destinationFolderPath);

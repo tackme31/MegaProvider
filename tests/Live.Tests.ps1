@@ -72,6 +72,13 @@ Describe 'Transfers and listing' {
         Get-ChildItem $R -Recurse -File -Name | Should -Contain (P 'sub\x.txt')
     }
 
+    It 'narrows by category and favourites through MEGA''s index' {
+        (Get-ChildItem $R -Recurse -Category Photo).Name | Sort-Object | Should -Be @('IMG_0001.jpg', 'IMG_0002.jpg')
+        Get-ChildItem $R -Recurse -Category Document -Name | Should -Contain (P 'sub\x.txt')
+        (Get-ChildItem $R -Category Document).Name | Should -Not -Contain 'x.txt'
+        Get-ChildItem $R -Recurse -Favorite | Should -BeNullOrEmpty   # the module cannot mark any
+    }
+
     It 'reports sizes and local-time dates' {
         $a = Get-Item "$R\a.txt"
         $a.Length | Should -Be (Get-Item "$local\up\a.txt").Length

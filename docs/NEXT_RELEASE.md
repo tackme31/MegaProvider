@@ -11,3 +11,5 @@
   入れ替えずにエラーにする。
 - 追加: `Get-Help` で各コマンドの説明・例・注意点が読める。`Get-Help about_MegaProvider` に、mega: ドライブで
   標準コマンド（`Remove-Item`、`Move-Item` など）がファイルシステムとどう違うかをまとめた。
+- 追加: `Get-ChildItem` の `-Category`（Photo、Video、Document などの種類）と `-Favorite`（お気に入り）。
+  `-Recurse` と一緒に使うと MEGA の索引を引くので、大きなドライブでも速い。

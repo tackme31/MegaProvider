@@ -125,6 +125,7 @@
 | `resume` | `{session}` | 段階の進捗行のあと `{email}`。同じセッションを持っていれば何もしない（進捗行も出ない） |
 | `logout` | — | サーバー側でもセッションを無効にする |
 | `list` | `{handle?}` | 子の一覧 |
+| `search` | `{handle?, recursive, category?, favourite}` | MEGA の索引で絞った子（`recursive` ならフォルダの下すべて）。`category` は `photo`、`audio`、`video`、`document`、`pdf`、`presentation`、`spreadsheet`、`archive`、`program`、`other`（種類を付けるとファイルだけ）。`recursive` のときは各項目に `names`（`path` と同じ） |
 | `rubbish` | — | ゴミ箱の一番上の階層 |
 | `path` | `{handle}` | `{root: "cloud"\|"rubbish"\|"other", names: [...]}`（ルートを除く祖先と自分） |
 | `restoreTarget` | `{handle}` | `{parent, fellBackToRoot}`。MEGA 本来の復元先。元のフォルダが無ければルート |

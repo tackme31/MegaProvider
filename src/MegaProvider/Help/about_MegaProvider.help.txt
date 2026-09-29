@@ -95,6 +95,26 @@ HOW MEGA DIFFERS FROM A FILE SYSTEM
     -Filter takes wildcards (* and ?) on the name and ignores case, like
     -Include does on the file system. -File and -Directory work as usual.
 
+    Get-ChildItem on the mega: drive also takes:
+
+        -Category <kind>   only files of that kind: Photo, Audio, Video,
+                           Document, Pdf, Presentation, Spreadsheet, Archive,
+                           Program or Other. MEGA decides the kind from the
+                           file name's extension.
+        -Favorite          only items marked as favourites (in MEGA's apps;
+                           this module cannot mark them)
+
+        Get-ChildItem mega:\ -Recurse -Category Photo
+        Get-ChildItem mega:\ -Recurse -Favorite
+
+    With -Recurse they ask MEGA's index once instead of listing every folder,
+    so they are fast on a large drive. A favourite folder is listed itself;
+    what is in it is not, unless marked too. They combine with -Filter,
+    -File, -Directory and -Name. Size and date filters are Where-Object's:
+
+        Get-ChildItem mega:\ -Recurse -Category Video |
+            Where-Object Length -gt 1GB
+
   Too many changes at once
     MEGA refuses changes that come too fast. Each refused change is retried
     a few times, over several seconds. If MEGA still refuses, the whole

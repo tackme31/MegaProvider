@@ -12,6 +12,7 @@ public sealed class FakeBackend : IMegaBackend
         public DateTime Modified = DateTime.Now;
         public Node? Parent;
         public Node? RestoreParent;
+        public bool IsFavorite;
         public DateTime? LinkCreated; // non-null while the node has a public link
         public DateTime? LinkExpires;
         public List<Node> Children = new();
@@ -26,10 +27,11 @@ public sealed class FakeBackend : IMegaBackend
     public FakeBackend()
     {
         var docs = Add(_root, "docs", true);
-        Add(docs, "readme.txt", false, 1200);
+        Add(docs, "readme.txt", false, 1200).IsFavorite = true;
         Add(docs, "notes.txt", false, 340);
         var photos = Add(_root, "photos", true);
         var y2024 = Add(photos, "2024", true);
+        y2024.IsFavorite = true;
         for (var i = 1; i <= 5; i++)
             Add(y2024, $"IMG_{i:0000}.jpg", false, 2_000_000 + i);
         Add(_root, "empty", true);
@@ -73,6 +75,31 @@ public sealed class FakeBackend : IMegaBackend
 
     public IReadOnlyList<MegaItem> List(string folderPath) =>
         RequireFolder(folderPath).Children.Select(c => c.ToItem()).ToList();
+
+    public IReadOnlyList<(string RelativePath, MegaItem Item)> Search(string folderPath, bool recurse, MegaCategory? category, bool favoritesOnly)
+    {
+        var folder = RequireFolder(folderPath);
+        var prefix = PathOf(folder).Length;
+        return (recurse ? Descendants(folder) : folder.Children)
+            .Where(n => (!favoritesOnly || n.IsFavorite) && (category is null || !n.IsFolder && CategoryOf(n.Name) == category))
+            .Select(n => (PathOf(n)[(prefix == 0 ? 0 : prefix + 1)..], n.ToItem()))
+            .ToList();
+    }
+
+    // Roughly MEGA's mapping, enough for tests; the real one is the SDK's.
+    private static MegaCategory CategoryOf(string name) => Path.GetExtension(name).ToLowerInvariant() switch
+    {
+        ".jpg" or ".jpeg" or ".png" or ".gif" or ".heic" or ".webp" => MegaCategory.Photo,
+        ".mp3" or ".wav" or ".flac" or ".m4a" => MegaCategory.Audio,
+        ".mp4" or ".mov" or ".mkv" or ".avi" => MegaCategory.Video,
+        ".txt" or ".doc" or ".docx" or ".odt" or ".rtf" => MegaCategory.Document,
+        ".pdf" => MegaCategory.Pdf,
+        ".ppt" or ".pptx" or ".odp" => MegaCategory.Presentation,
+        ".xls" or ".xlsx" or ".ods" or ".csv" => MegaCategory.Spreadsheet,
+        ".zip" or ".rar" or ".7z" or ".gz" => MegaCategory.Archive,
+        ".exe" or ".msi" or ".apk" => MegaCategory.Program,
+        _ => MegaCategory.Other,
+    };
 
     // MEGAPROVIDER_FAKE_EAGAIN=n[@k]: after k changes (counted from when the value was set), each change is
     // refused with EAGAIN n times before it goes through. Read on each call so a test can set it.
