@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <string>
 #include <nlohmann/json.hpp>
 
 class MegaSdkClient;
@@ -17,7 +18,9 @@ using Emit = std::function<bool(const Json&)>;
 class Service
 {
 public:
-    explicit Service(MegaSdkClient& client);
+    // buildId: whatever the starting module passed, echoed by `status` so a module can tell
+    // whether this host is its own build.
+    Service(MegaSdkClient& client, std::string buildId);
 
     // Returns {"ok":true,"result":...} or {"ok":false,"error":{"code":..,"message":..}};
     // the caller adds the request id.
@@ -62,4 +65,7 @@ private:
     std::atomic<bool> mReady{false};
     std::atomic<bool> mStopRequested{false};
     std::atomic<std::uint64_t> mNextTransferId{1};
+    const std::string mBuildId;
+    // Requests that must not be cut short by `shutdown` (transfers, logging in).
+    std::atomic<int> mBusy{0};
 };

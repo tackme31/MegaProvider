@@ -15,6 +15,7 @@ namespace MegaProvider.Backend.Host;
 internal sealed class HostClient
 {
     public const int CodeNotLoggedIn = 2;
+    public const int CodeBusy = 3;
     public const int CodeBadSession = -15;
     public const int CodeNoEnt = -9;
     public const int CodeAgain = -3;
@@ -26,6 +27,7 @@ internal sealed class HostClient
     public const int CodeMfaRequired = -26;
 
     private static readonly TimeSpan StartTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(30);
 
     private static readonly string ExePath = Path.Combine(
         Path.GetDirectoryName(typeof(HostClient).Assembly.Location)!,
@@ -44,6 +46,10 @@ internal sealed class HostClient
                 ? Path.Combine(runtime, "megaprovider")
                 : DataDir,
             "host.sock");
+
+    // Which host is ours: the exe itself, so a module never talks to another version's host
+    // (versions install side by side) nor to an older build overwritten in place.
+    private static readonly string BuildId = $"{ExePath}|{File.GetLastWriteTimeUtc(ExePath).Ticks}";
 
     private readonly object _gate = new();
     private NamedPipeClientStream? _pipe;
@@ -80,21 +86,7 @@ internal sealed class HostClient
         Send(request.ToJsonString());
         try
         {
-            for (;;)
-            {
-                var line = _reader!.ReadLine() ?? throw new IOException("The MEGA host closed the connection.");
-                var message = JsonNode.Parse(line)!.AsObject();
-                if (message["id"]?.GetValue<int>() != id) continue;
-                if (message["progress"] is JsonObject p)
-                {
-                    progress?.Invoke(p);
-                    continue;
-                }
-                if (message["ok"]!.GetValue<bool>())
-                    return message["result"];
-                var error = message["error"]!;
-                throw new HostException(error["code"]!.GetValue<int>(), error["message"]!.GetValue<string>());
-            }
+            return ReadReply(id, progress);
         }
         catch (Exception e) when (e is IOException or ObjectDisposedException)
         {
@@ -130,28 +122,90 @@ internal sealed class HostClient
     {
         if (_pipe is { IsConnected: true }) return;
         Disconnect();
+        if (!TryConnect())
+        {
+            StartAndConnect();
+            return;
+        }
+        if (Exchange("status")?["buildId"]?.GetValue<string>() == BuildId) return;
+        // Another version's host (or one from before build ids, which reports none) would not know
+        // our requests, or would answer them differently. Replace it; the SDK's node cache stays.
+        try
+        {
+            Exchange("shutdown");
+        }
+        catch (HostException e) when (e.Code == CodeBusy)
+        {
+            Disconnect();
+            throw new InvalidOperationException(
+                "Another version of MegaProvider is transferring or logging in through the MEGA host. Try again when it finishes.", e);
+        }
+        Disconnect();
+        // Stopping unloads the SDK, which can take a few seconds; the pipe goes when the process does.
+        var deadline = DateTime.UtcNow + StopTimeout;
+        while (TryConnect())
+        {
+            Disconnect();
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("The MEGA host of another MegaProvider version did not stop.");
+            Thread.Sleep(200);
+        }
+        StartAndConnect();
+    }
+
+    private bool TryConnect(int timeoutMs = 100)
+    {
         var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut);
         try
         {
-            pipe.Connect(100);
+            pipe.Connect(timeoutMs);
         }
         catch (TimeoutException)
         {
-            StartHost();
-            var deadline = DateTime.UtcNow + StartTimeout;
-            while (true)
-            {
-                try
-                {
-                    pipe.Connect(250);
-                    break;
-                }
-                catch (TimeoutException) when (DateTime.UtcNow < deadline) { }
-            }
+            pipe.Dispose();
+            return false;
         }
         _pipe = pipe;
         _reader = new StreamReader(pipe, new UTF8Encoding(false));
         _writer = new StreamWriter(pipe, new UTF8Encoding(false)) { NewLine = "\n" };
+        return true;
+    }
+
+    private void StartAndConnect()
+    {
+        StartHost();
+        var deadline = DateTime.UtcNow + StartTimeout;
+        while (!TryConnect(250))
+            if (DateTime.UtcNow > deadline)
+                throw new TimeoutException("The MEGA host did not start.");
+    }
+
+    /// <summary>One request on the connection just made, for the checks in <see cref="EnsureConnected"/>.</summary>
+    private JsonNode? Exchange(string op)
+    {
+        var id = ++_nextId;
+        _writer!.WriteLine(new JsonObject { ["id"] = id, ["op"] = op }.ToJsonString());
+        _writer.Flush();
+        return ReadReply(id, null);
+    }
+
+    private JsonNode? ReadReply(int id, Action<JsonObject>? progress)
+    {
+        for (;;)
+        {
+            var line = _reader!.ReadLine() ?? throw new IOException("The MEGA host closed the connection.");
+            var message = JsonNode.Parse(line)!.AsObject();
+            if (message["id"]?.GetValue<int>() != id) continue;
+            if (message["progress"] is JsonObject p)
+            {
+                progress?.Invoke(p);
+                continue;
+            }
+            if (message["ok"]!.GetValue<bool>())
+                return message["result"];
+            var error = message["error"]!;
+            throw new HostException(error["code"]!.GetValue<int>(), error["message"]!.GetValue<string>());
+        }
     }
 
     private void Disconnect()
@@ -173,7 +227,7 @@ internal sealed class HostClient
         var psi = OperatingSystem.IsWindows()
             ? new ProcessStartInfo(ExePath) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden }
             : new ProcessStartInfo(ExePath) { UseShellExecute = false };
-        foreach (var a in new[] { "--pipe", PipeName, "--data", DataDir })
+        foreach (var a in new[] { "--pipe", PipeName, "--data", DataDir, "--build-id", BuildId })
             psi.ArgumentList.Add(a);
         // Not waited on or killed: it outlives this PowerShell so the next one finds the nodes already loaded.
         using var _ = Process.Start(psi);

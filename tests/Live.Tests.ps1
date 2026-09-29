@@ -41,7 +41,7 @@ BeforeAll {
                 if (-not $read.Wait([timespan]::FromSeconds(60))) { throw "No reply to '$op' within 60 s." }
                 $reply = $read.Result | ConvertFrom-Json
             } while ($reply.progress)
-            if (-not $reply.ok) { throw "The host refused '$op': $($reply.error.message)" }
+            if (-not $reply.ok) { throw "The host refused '$op': $($reply.error.code) $($reply.error.message)" }
             $reply.result
         }
         finally { $pipe.Dispose() }
@@ -291,6 +291,75 @@ Describe 'The SDK host' {
         $ps.InvocationStateInfo.State | Should -Be 'Stopped'
         Start-Sleep -Seconds 3
         Test-Path "$R\big.bin" | Should -BeFalse
+    }
+
+    Context 'A host of another version' {
+        BeforeAll {
+            $script:pipe = & "$PSScriptRoot/../scripts/Get-HostPipeName.ps1"
+            $script:exe = Join-Path (Split-Path $env:MEGAPROVIDER_PSD1) ($IsWindows ? 'megaprovider-host.exe' : 'megaprovider-host')
+
+            # Swaps our host for one started without --build-id, as 0.3.0 and earlier started it, on the
+            # same pipe and data folder. Returns its process id.
+            function Start-ForeignHost {
+                $session = (Invoke-HostRequest $pipe status).session
+                $ours = (Get-Process megaprovider-host).Id
+                Invoke-HostRequest $pipe shutdown | Out-Null
+                # Not Wait-Process: it returned at once for a host this process had started (seen on Windows).
+                $deadline = (Get-Date).AddSeconds(30)
+                while ((Get-Process -Id $ours -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+                $data = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'MegaProvider/host'
+                $hidden = $IsWindows ? @{ WindowStyle = 'Hidden' } : @{}
+                Start-Process $exe @hidden -ArgumentList '--pipe', "`"$pipe`"", '--data', "`"$data`""
+                Invoke-HostRequest $pipe resume @{ session = $session } | Out-Null
+                (Invoke-HostRequest $pipe status).buildId | Should -BeNullOrEmpty
+                (Get-Process megaprovider-host).Id
+            }
+        }
+
+        It 'is replaced by ours' {
+            $foreign = Start-ForeignHost
+            (Get-MegaAccount).Email | Should -Be $env:MEGAEXPLORER_TEST_ACCOUNT
+            Get-Process -Id $foreign -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
+            (Invoke-HostRequest $pipe status).buildId | Should -Not -BeNullOrEmpty
+            (Get-ChildItem $R).Name | Should -Contain 'moved'
+        }
+
+        It 'is left alone while it transfers, with an error that says so' {
+            $parent = (Get-Item $R).Handle
+            $foreign = Start-ForeignHost
+            # An upload through the foreign host, as the other version's PowerShell would run it.
+            $state = [hashtable]::Synchronized(@{})
+            $out = [Management.Automation.PSDataCollection[psobject]]::new()
+            $upload = [powershell]::Create().AddScript({
+                    param($state, $pipeName, $file, $parent)
+                    $p = [IO.Pipes.NamedPipeClientStream]::new('.', $pipeName, [IO.Pipes.PipeDirection]::InOut)
+                    $state.pipe = $p
+                    $p.Connect(10000)
+                    $w = [IO.StreamWriter]::new($p); $w.NewLine = "`n"
+                    $w.WriteLine((@{ id = 1; op = 'upload'; args = @{ local = $file; parent = $parent } } | ConvertTo-Json -Compress)); $w.Flush()
+                    $r = [IO.StreamReader]::new($p)
+                    while ($null -ne ($line = $r.ReadLine())) { $line }
+                }).AddArgument($state).AddArgument($pipe).AddArgument((Join-Path $local 'big.bin')).AddArgument($parent)
+            $async = $upload.BeginInvoke([Management.Automation.PSDataCollection[psobject]]$null, $out)
+            $deadline = (Get-Date).AddSeconds(30)
+            while ($out.Count -eq 0 -and -not $async.IsCompleted -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 50 }
+            "$($out[0])" | Should -BeLike '*progress*'
+
+            { Get-MegaAccount -ErrorAction Stop } | Should -Throw '*Another version of MegaProvider*'
+            Get-Process -Id $foreign | Should -Not -BeNullOrEmpty
+
+            # Closing the connection cancels the upload; after that the host can be replaced.
+            $state.pipe.Dispose()
+            $deadline = (Get-Date).AddSeconds(30)
+            do {
+                Start-Sleep -Milliseconds 500
+                $email = try { (Get-MegaAccount -ErrorAction Stop).Email } catch { $null }
+            } until ($email -or (Get-Date) -gt $deadline)
+            $email | Should -Be $env:MEGAEXPLORER_TEST_ACCOUNT
+            Get-Process -Id $foreign -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
+            Test-Path "$R\big.bin" | Should -BeFalse
+            $upload.Dispose()
+        }
     }
 }
 

@@ -18,7 +18,8 @@ function Stop-Host {
     try {
         $writer = [IO.StreamWriter]::new($pipe); $writer.NewLine = "`n"
         $writer.WriteLine('{"id":1,"op":"shutdown"}'); $writer.Flush()
-        [void][IO.StreamReader]::new($pipe).ReadLine()
+        $reply = [IO.StreamReader]::new($pipe).ReadLine() | ConvertFrom-Json
+        if (-not $reply.ok) { throw "The MEGA host did not stop: $($reply.error.message). Try again when it finishes." }
     } finally { $pipe.Dispose() }
     Get-Process megaprovider-host -ErrorAction SilentlyContinue | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
 }

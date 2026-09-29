@@ -16,6 +16,7 @@ namespace
 // Host-level error codes. Positive so they never collide with the SDK's (all <= 0).
 constexpr int kBadRequest = 1;
 constexpr int kNotLoggedIn = 2;
+constexpr int kBusy = 3;
 
 struct HostError : std::runtime_error
 {
@@ -158,9 +159,21 @@ private:
     bool mCancelled = false;
 };
 
+class BusyScope
+{
+public:
+    explicit BusyScope(std::atomic<int>& busy) : mBusy(busy) { ++mBusy; }
+    ~BusyScope() { --mBusy; }
+    BusyScope(const BusyScope&) = delete;
+    BusyScope& operator=(const BusyScope&) = delete;
+
+private:
+    std::atomic<int>& mBusy;
+};
+
 } // namespace
 
-Service::Service(MegaSdkClient& client) : mClient(client) {}
+Service::Service(MegaSdkClient& client, std::string buildId) : mClient(client), mBuildId(std::move(buildId)) {}
 
 Json Service::handle(const Json& request, const Emit& emit)
 {
@@ -232,6 +245,9 @@ Json Service::dispatch(const std::string& op, const Json& args, const Emit& emit
         return plan();
     if (op == "shutdown")
     {
+        // Another PowerShell's transfer or login would die with it; the caller asks again later.
+        if (mBusy > 0)
+            throw HostError(kBusy, "the host is busy with a transfer or a login");
         mStopRequested = true;
         return Json::object();
     }
@@ -313,11 +329,11 @@ Json Service::status()
         // mReady outlives a session invalidated on the server; the SDK then has none to dump.
         Result<std::string> session = mClient.currentSessionToken();
         if (session.success)
-            return {{"loggedIn", true}, {"email", email()}, {"session", session.value()}};
+            return {{"loggedIn", true}, {"email", email()}, {"session", session.value()}, {"buildId", mBuildId}};
         LOG_INFO("host") << "session is gone (" << session.errorMessage << "); reporting logged out";
         mReady = false;
     }
-    return {{"loggedIn", false}};
+    return {{"loggedIn", false}, {"buildId", mBuildId}};
 }
 
 Json Service::login(const Json& args, const Emit& emit)
@@ -325,6 +341,7 @@ Json Service::login(const Json& args, const Emit& emit)
     const std::string user = requireString(args, "email");
     const std::string password = requireString(args, "password");
     const std::string authCode = optionalString(args, "authCode");
+    const BusyScope busy(mBusy);
 
     std::lock_guard<std::mutex> lock(mAuthMutex);
     dropSession();
@@ -342,6 +359,7 @@ Json Service::login(const Json& args, const Emit& emit)
 Json Service::resume(const Json& args, const Emit& emit)
 {
     const std::string session = requireString(args, "session");
+    const BusyScope busy(mBusy);
 
     std::lock_guard<std::mutex> lock(mAuthMutex);
     if (mReady && unwrap(mClient.currentSessionToken()) == session)
@@ -463,6 +481,7 @@ Json Service::upload(const Json& args, const Emit& emit)
     requireReady();
     const std::string local = requireString(args, "local");
     const FolderRef parent = optionalFolder(args, "parent");
+    const BusyScope busy(mBusy);
     const std::uint64_t id = mNextTransferId++;
     ProgressRelay relay(emit, [this, id] { mClient.cancelUpload(id); });
     const UploadOutcome outcome = unwrap(await<UploadOutcome>([&](auto done) {
@@ -476,6 +495,7 @@ Json Service::download(const Json& args, const Emit& emit)
     requireReady();
     const std::uint64_t handle = requireHandle(args, "handle");
     const std::string local = requireString(args, "local");
+    const BusyScope busy(mBusy);
     const std::uint64_t id = mNextTransferId++;
     ProgressRelay relay(emit, [this, id] { mClient.cancelDownload(id); });
     const DownloadOutcome outcome = unwrap(await<DownloadOutcome>([&](auto done) {

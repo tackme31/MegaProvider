@@ -1,10 +1,11 @@
 // megaprovider-host: owns one MegaApi and serves the PowerShell provider over a named pipe
 // (Windows) or a Unix domain socket (elsewhere).
 //
-//   megaprovider-host --pipe <name or socket path> --data <dir> [--idle-minutes <n>]
+//   megaprovider-host --pipe <name or socket path> --data <dir> [--idle-minutes <n>] [--build-id <text>]
 //
 // Started on demand by the module. One process per pipe name: a second copy finds the
 // pipe taken and exits. It exits by itself after --idle-minutes with no client connected.
+// --build-id is echoed by `status`; a module that finds another build's host shuts it down.
 // Protocol: docs/HOST.md.
 #include "Platform.h"
 #include "Service.h"
@@ -145,6 +146,7 @@ int run(const std::vector<std::string>& args)
     std::string pipeName;
     std::string dataDir;
     int idleMinutes = 60;
+    std::string buildId;
     for (std::size_t i = 0; i + 1 < args.size(); i += 2)
     {
         if (args[i] == "--pipe")
@@ -153,10 +155,13 @@ int run(const std::vector<std::string>& args)
             dataDir = args[i + 1];
         else if (args[i] == "--idle-minutes")
             idleMinutes = std::atoi(args[i + 1].c_str());
+        else if (args[i] == "--build-id")
+            buildId = args[i + 1];
     }
     if (pipeName.empty() || dataDir.empty())
     {
-        std::fprintf(stderr, "usage: megaprovider-host --pipe <name> --data <dir> [--idle-minutes <n>]\n");
+        std::fprintf(stderr,
+                     "usage: megaprovider-host --pipe <name> --data <dir> [--idle-minutes <n>] [--build-id <text>]\n");
         return 2;
     }
     // First of all: a second host must leave without touching the first one's log (which
@@ -174,7 +179,7 @@ int run(const std::vector<std::string>& args)
     // downloading the whole tree again on the next login. The SDK wants the trailing separator.
     MegaSdkClient client(utf8(data / "sdk") + static_cast<char>(std::filesystem::path::preferred_separator),
                          "MegaProvider/0.1");
-    Service service(client);
+    Service service(client, buildId);
     gLastActivity = nowSeconds();
     LOG_INFO("host") << "started, pid" << currentProcessId();
 
