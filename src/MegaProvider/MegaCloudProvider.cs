@@ -6,7 +6,7 @@ using MegaProvider.Backend;
 namespace MegaProvider;
 
 [CmdletProvider("Mega", ProviderCapabilities.ShouldProcess | ProviderCapabilities.Filter)]
-public sealed class MegaCloudProvider : NavigationCmdletProvider
+public sealed partial class MegaCloudProvider : NavigationCmdletProvider, IPropertyCmdletProvider
 {
     // Providers are instantiated per call, so the backend (and its session) lives in BackendHost, not here.
     // Checking the session first lets a slow login (after the host restarted) show a progress bar.

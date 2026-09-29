@@ -15,3 +15,5 @@
   `-Recurse` と一緒に使うと MEGA の索引を引くので、大きなドライブでも速い。
 - 追加: `mega:` の項目に `CreationTime`（MEGA に置かれた日時）、`IsFavorite`、`HasLink`（公開リンクの有無）、
   `Label`（色ラベル）。`Where-Object` で絞れる。
+- 追加: `Set-ItemProperty` / `Clear-ItemProperty` でお気に入りと色ラベルを付け外しできる
+  （`ls mega:\photos -Filter *.jpg | Set-ItemProperty -Name Label -Value Red`）。`Get-ItemProperty` も使える。

@@ -376,6 +376,12 @@ public:
                                   bool favourite,
                                   std::function<void(Result<void>)> onDone) = 0;
 
+    // Sets the node's colour label (MEGA's numbers, 1 = red .. 7 = grey), or removes
+    // it when `label` is 0.
+    virtual void setNodeLabel(std::uint64_t handle,
+                              int label,
+                              std::function<void(Result<void>)> onDone) = 0;
+
     // Issues -- or re-reads -- the node's public link, handing back the URL. Safe to
     // call on a node that already has one: MEGA returns the existing link rather than
     // minting a second, so this doubles as "get the link" and no caller has to know

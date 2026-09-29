@@ -324,6 +324,107 @@ Describe 'Public links' {
 
 # MEGAPROVIDER_FAKE_EAGAIN makes the fake refuse changes with EAGAIN, through the same retry as the host
 # (RateLimit.Retry: 4 retries). Nothing here reaches MEGA; provoking the real limit is not done on purpose.
+Describe 'Favourites and labels (Get-, Set-, Clear-ItemProperty)' {
+    BeforeAll {
+        New-Item mega:\props -ItemType Directory | Out-Null
+        1..3 | ForEach-Object { Copy-Item mega:\docs\notes.txt "mega:\props\p$_.txt" }
+    }
+    # Clear-ItemProperty takes one -Name, unlike Get-ItemProperty.
+    BeforeEach {
+        Get-ChildItem mega:\props | Clear-ItemProperty -Name Label
+        Get-ChildItem mega:\props | Clear-ItemProperty -Name IsFavorite
+    }
+    AfterAll { Remove-Item mega:\props -Recurse }
+
+    It 'reads the item''s properties, all or by name' {
+        Set-ItemProperty mega:\props\p1.txt -Name Label -Value Red
+        $all = Get-ItemProperty mega:\props\p1.txt
+        $all.Label | Should -Be 'Red'
+        $all.IsFavorite | Should -BeFalse
+        $all.Length | Should -Be 340
+        $picked = Get-ItemProperty mega:\props\p1.txt -Name label, Is*
+        $picked.PSObject.Properties.Name | Should -Contain 'Label'
+        $picked.PSObject.Properties.Name | Should -Contain 'IsFavorite'
+        $picked.PSObject.Properties.Name | Should -Not -Contain 'Length'
+        Get-ItemPropertyValue mega:\props\p1.txt -Name Label | Should -Be 'Red'
+        { Get-ItemProperty mega:\props\p1.txt -Name Nope -ErrorAction Stop } | Should -Throw '*no property named*'
+    }
+
+    It 'sets and clears a label, by name, number or enum' {
+        Set-ItemProperty mega:\props\p1.txt -Name label -Value blue
+        (Get-Item mega:\props\p1.txt).Label | Should -Be 'Blue'
+        Set-ItemProperty mega:\props\p1.txt -Name Label -Value 4
+        (Get-Item mega:\props\p1.txt).Label | Should -Be 'Green'
+        Set-ItemProperty mega:\props\p1.txt -Name Label -Value ([MegaProvider.Backend.MegaLabel]::Grey)
+        (Get-Item mega:\props\p1.txt).Label | Should -Be 'Grey'
+        Set-ItemProperty mega:\props\p1.txt -Name Label -Value $null
+        (Get-Item mega:\props\p1.txt).Label | Should -BeNullOrEmpty
+        Set-ItemProperty mega:\props\p1.txt -Name Label -Value Red
+        Clear-ItemProperty mega:\props\p1.txt -Name Label
+        (Get-Item mega:\props\p1.txt).Label | Should -BeNullOrEmpty
+    }
+
+    It 'sets and clears a favourite, reading "false" as false' {
+        Set-ItemProperty mega:\props\p1.txt -Name IsFavorite -Value $true
+        (Get-Item mega:\props\p1.txt).IsFavorite | Should -BeTrue
+        # PowerShell's own conversion would make any non-empty string $true.
+        Set-ItemProperty mega:\props\p1.txt -Name IsFavorite -Value false
+        (Get-Item mega:\props\p1.txt).IsFavorite | Should -BeFalse
+        Set-ItemProperty mega:\props\p1.txt -Name IsFavorite -Value 'True'
+        Clear-ItemProperty mega:\props\p1.txt -Name IsFavorite
+        (Get-Item mega:\props\p1.txt).IsFavorite | Should -BeFalse
+    }
+
+    It 'rejects values that are not a label or a boolean' {
+        { Set-ItemProperty mega:\props\p1.txt -Name Label -Value Pink -ErrorAction Stop } | Should -Throw '*must be one of*'
+        { Set-ItemProperty mega:\props\p1.txt -Name Label -Value 9 -ErrorAction Stop } | Should -Throw '*must be one of*'
+        # Enum.TryParse would OR these into Yellow.
+        { Set-ItemProperty mega:\props\p1.txt -Name Label -Value 'Red, Orange' -ErrorAction Stop } | Should -Throw '*must be one of*'
+        { Set-ItemProperty mega:\props\p1.txt -Name IsFavorite -Value yes -ErrorAction Stop } | Should -Throw '*$true or $false*'
+        { Set-ItemProperty mega:\props\p1.txt -Name IsFavorite -Value 1 -ErrorAction Stop } | Should -Throw '*$true or $false*'
+        (Get-Item mega:\props\p1.txt).Label | Should -BeNullOrEmpty
+    }
+
+    It 'refuses the other properties, saying which command changes them' {
+        { Set-ItemProperty mega:\props\p1.txt -Name Name -Value x.txt -ErrorAction Stop } | Should -Throw '*Rename-Item*'
+        { Set-ItemProperty mega:\props\p1.txt -Name HasLink -Value $true -ErrorAction Stop } | Should -Throw '*Publish-MegaItem*'
+        { Set-ItemProperty mega:\props\p1.txt -Name Length -Value 1 -ErrorAction Stop } | Should -Throw '*read-only*'
+        { Clear-ItemProperty mega:\props\p1.txt -Name CreationTime -ErrorAction Stop } | Should -Throw '*read-only*'
+        { Set-ItemProperty mega:\props\p1.txt -Name Colour -Value Red -ErrorAction Stop } | Should -Throw '*no property named*'
+    }
+
+    It 'sets several at once from a hashtable or an object, or none if one is wrong' {
+        Set-ItemProperty mega:\props\p1.txt -InputObject @{ Label = 'Purple'; IsFavorite = $true }
+        $p1 = Get-Item mega:\props\p1.txt
+        $p1.Label, $p1.IsFavorite | Should -Be @('Purple', $true)
+        { Set-ItemProperty mega:\props\p2.txt -InputObject ([pscustomobject]@{ Label = 'Red'; IsFavorite = 'maybe' }) -ErrorAction Stop } |
+            Should -Throw '*$true or $false*'
+        (Get-Item mega:\props\p2.txt).Label | Should -BeNullOrEmpty
+    }
+
+    It 'works through the pipeline and returns the new values with -PassThru' {
+        $out = Get-ChildItem mega:\props | Set-ItemProperty -Name Label -Value Green -PassThru
+        $out | Should -HaveCount 3
+        $out[0].Label | Should -Be 'Green'
+        (Get-ChildItem mega:\props).Label | Should -Be @('Green', 'Green', 'Green')
+        Get-ChildItem mega:\props | Set-ItemProperty -Name IsFavorite -Value $true
+        (Get-ChildItem mega:\props -Favorite).Name | Should -Be @('p1.txt', 'p2.txt', 'p3.txt')
+    }
+
+    It 'does nothing under -WhatIf' {
+        Set-ItemProperty mega:\props\p1.txt -Name Label -Value Red -WhatIf
+        Clear-ItemProperty mega:\docs\readme.txt -Name IsFavorite -WhatIf
+        (Get-Item mega:\props\p1.txt).Label | Should -BeNullOrEmpty
+        (Get-Item mega:\docs\readme.txt).IsFavorite | Should -BeTrue
+    }
+
+    It 'refuses an ambiguous path and the drive root' {
+        { Set-ItemProperty mega:\dup.txt -Name Label -Value Red -ErrorAction Stop } | Should -Throw '*ambiguous*'
+        { Set-ItemProperty mega:\ -Name Label -Value Red -ErrorAction Stop } | Should -Throw '*drive root*'
+        Get-ChildItem mega:\ -File | Where-Object Label | Should -BeNullOrEmpty
+    }
+}
+
 Describe 'Rate limiting (EAGAIN)' {
     BeforeAll {
         New-Item mega:\ratelimit -ItemType Directory | Out-Null
@@ -355,6 +456,13 @@ Describe 'Rate limiting (EAGAIN)' {
         (Get-ChildItem mega:\ratelimit).Name | Should -Be @('s1.txt', 's2.txt', 'r3.txt', 'r4.txt')
         Remove-Item env:MEGAPROVIDER_FAKE_EAGAIN
         Get-ChildItem mega:\ratelimit -Filter s*.txt | Rename-Item -NewName { 'r' + $_.Name.Substring(1) }
+    }
+
+    It 'stops Set-ItemProperty too' {
+        $env:MEGAPROVIDER_FAKE_EAGAIN = '5'
+        { Set-ItemProperty mega:\ratelimit\r1.txt -Name Label -Value Red -ErrorAction Continue } | Should -Throw '*EAGAIN*'
+        Remove-Item env:MEGAPROVIDER_FAKE_EAGAIN
+        (Get-Item mega:\ratelimit\r1.txt).Label | Should -BeNullOrEmpty
     }
 
     It 'stops the module cmdlets too' {

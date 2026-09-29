@@ -256,6 +256,10 @@ Json Service::dispatch(const std::string& op, const Json& args, const Emit& emit
         return mkdir(args);
     if (op == "rename")
         return rename(args);
+    if (op == "setFavourite")
+        return setFavourite(args);
+    if (op == "setLabel")
+        return setLabel(args);
     if (op == "move")
         return move(args);
     if (op == "copy")
@@ -504,6 +508,28 @@ Json Service::rename(const Json& args)
     const std::uint64_t handle = requireHandle(args, "handle");
     const std::string name = requireString(args, "name");
     unwrap(await<void>([&](auto done) { mClient.renameNode(handle, name, std::move(done)); }));
+    return Json::object();
+}
+
+Json Service::setFavourite(const Json& args)
+{
+    requireReady();
+    const std::uint64_t handle = requireHandle(args, "handle");
+    const Json& value = require(args, "favourite");
+    if (!value.is_boolean())
+        throw HostError(kBadRequest, "'favourite' must be true or false");
+    unwrap(await<void>([&](auto done) { mClient.setNodeFavourite(handle, value.get<bool>(), std::move(done)); }));
+    return Json::object();
+}
+
+Json Service::setLabel(const Json& args)
+{
+    requireReady();
+    const std::uint64_t handle = requireHandle(args, "handle");
+    const Json& value = require(args, "label");
+    if (!value.is_number_integer() || value.get<int>() < 0 || value.get<int>() > 7)
+        throw HostError(kBadRequest, "'label' must be 0 (none) to 7");
+    unwrap(await<void>([&](auto done) { mClient.setNodeLabel(handle, value.get<int>(), std::move(done)); }));
     return Json::object();
 }
 

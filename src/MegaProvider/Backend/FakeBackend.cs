@@ -135,6 +135,20 @@ public sealed class FakeBackend : IMegaBackend
         return n.ToItem();
     });
 
+    public MegaItem SetFavorite(string path, bool favorite) => Change(() =>
+    {
+        var n = Require(path);
+        n.IsFavorite = favorite;
+        return n.ToItem();
+    });
+
+    public MegaItem SetLabel(string path, MegaLabel? label) => Change(() =>
+    {
+        var n = Require(path);
+        n.Label = label;
+        return n.ToItem();
+    });
+
     public MegaItem Move(string path, string destinationFolderPath) => Change(() =>
     {
         var n = Require(path);

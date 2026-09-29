@@ -132,6 +132,8 @@
 | `restoreTarget` | `{handle}` | `{parent, fellBackToRoot}`。MEGA 本来の復元先。元のフォルダが無ければルート |
 | `mkdir` | `{parent?, name}` | 同名のフォルダがあると -12 |
 | `rename` | `{handle, name}` | |
+| `setFavourite` | `{handle, favourite}` | お気に入りにする（`true`）/ 外す（`false`）。すでにその値でも成功 |
+| `setLabel` | `{handle, label}` | 色ラベル。`list` の `label` と同じ番号（1 赤〜7 灰）、0 で外す |
 | `move` | `{handle, parent?, name?}` | 同名があっても兄弟ができるだけ（上書きしない） |
 | `copy` | `{handle, parent?, name?}` | フォルダは中身ごと。同名のファイルがあると兄弟ではなく版として積まれ、中身が同じなら何も起きない（どちらも成功が返る）。新しい handle は返らない。フォルダを自分の中へコピーするとエラーにならず、その時点の中身が 1 段だけ複製される（実測） |
 | `trash` | `{handle}` | ゴミ箱へ移す |

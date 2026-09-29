@@ -185,6 +185,10 @@ public:
                           bool favourite,
                           std::function<void(Result<void>)> onDone) override;
 
+    void setNodeLabel(std::uint64_t handle,
+                      int label,
+                      std::function<void(Result<void>)> onDone) override;
+
     void exportNode(std::uint64_t handle, std::function<void(Result<std::string>)> onDone) override;
 
     void setLinkExpiry(std::uint64_t handle,

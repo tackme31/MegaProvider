@@ -40,6 +40,7 @@ Get-ChildItem mega:\photos -Recurse -Filter *.jpg | Rename-Item -NewName { $_.Na
 ```
 src/MegaProvider/
   MegaCloudProvider.cs     プロバイダ本体。PowerShell のパス ⇔ MEGA のパスの変換はここだけ
+  MegaCloudProvider.Properties.cs  Get- / Set- / Clear-ItemProperty（お気に入りと色ラベル）
   AccountCommands.cs       Connect- / Get- / Disconnect-MegaAccount
   ItemCommands.cs          Send- / Receive-MegaItem、Get-MegaRubbishItem、Restore-MegaItem
   LinkCommands.cs          Publish- / Unpublish-MegaItem、Get-MegaLink（公開リンク）

@@ -65,6 +65,21 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
         return Reread(chain[^2], chain[^1].Handle);
     }
 
+    // The node may not show a new attribute until MEGA echoes the change back, so the result is built from the request.
+    public MegaItem SetFavorite(string path, bool favorite)
+    {
+        var item = RequireChain(path)[^1];
+        Call("setFavourite", new { handle = item.Handle, favourite = favorite });
+        return item with { IsFavorite = favorite };
+    }
+
+    public MegaItem SetLabel(string path, MegaLabel? label)
+    {
+        var item = RequireChain(path)[^1];
+        Call("setLabel", new { handle = item.Handle, label = (int?)label ?? 0 });
+        return item with { Label = label };
+    }
+
     public MegaItem Move(string path, string destinationFolderPath)
     {
         var item = RequireChain(path)[^1];

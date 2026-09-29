@@ -35,6 +35,10 @@ public interface IMegaBackend
     IReadOnlyList<(string RelativePath, MegaItem Item)> Search(string folderPath, bool recurse, MegaCategory? category, bool favoritesOnly);
     MegaItem CreateFolder(string parentPath, string name);
     MegaItem Rename(string path, string newName);
+    MegaItem SetFavorite(string path, bool favorite);
+
+    /// <summary>Sets the colour label, or removes it when <paramref name="label"/> is null.</summary>
+    MegaItem SetLabel(string path, MegaLabel? label);
     MegaItem Move(string path, string destinationFolderPath);
 
     /// <summary>

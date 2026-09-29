@@ -10,7 +10,8 @@ LONG DESCRIPTION
 
         Set-Location (cd), Get-ChildItem (ls), Get-Item, Test-Path,
         Rename-Item, Move-Item, Copy-Item, Remove-Item,
-        New-Item -ItemType Directory, Resolve-Path, Split-Path, Join-Path
+        New-Item -ItemType Directory, Resolve-Path, Split-Path, Join-Path,
+        Get-ItemProperty, Set-ItemProperty, Clear-ItemProperty
 
         Get-ChildItem mega:\photos -Recurse -Filter *.jpg |
             Rename-Item -NewName { $_.Name -replace '^IMG_', 'trip_' }
@@ -30,6 +31,9 @@ LONG DESCRIPTION
         Get-ChildItem mega:\ -Recurse | Where-Object Label -eq Red
         Get-ChildItem mega:\ -Recurse -File |
             Where-Object CreationTime -gt (Get-Date).AddDays(-7)
+
+    IsFavorite and Label can be changed with Set-ItemProperty and
+    Clear-ItemProperty (see "Favourites and labels" below).
 
     Every command that changes something supports -WhatIf and -Confirm.
 
@@ -114,8 +118,7 @@ HOW MEGA DIFFERS FROM A FILE SYSTEM
                            Document, Pdf, Presentation, Spreadsheet, Archive,
                            Program or Other. MEGA decides the kind from the
                            file name's extension.
-        -Favorite          only items marked as favourites (in MEGA's apps;
-                           this module cannot mark them)
+        -Favorite          only items marked as favourites
 
         Get-ChildItem mega:\ -Recurse -Category Photo
         Get-ChildItem mega:\ -Recurse -Favorite
@@ -127,6 +130,26 @@ HOW MEGA DIFFERS FROM A FILE SYSTEM
 
         Get-ChildItem mega:\ -Recurse -Category Video |
             Where-Object Length -gt 1GB
+
+  Favourites and labels
+    Set-ItemProperty changes IsFavorite ($true or $false) and Label (a
+    colour name, its number 1 to 7, or $null to remove it). Clear-ItemProperty
+    removes a label and unmarks a favourite. The other properties cannot be
+    set: Name is changed with Rename-Item, HasLink with Publish-MegaItem and
+    Unpublish-MegaItem, and the rest are read-only.
+
+        Set-ItemProperty mega:\report.pdf -Name Label -Value Red
+        Get-ChildItem mega:\photos -Filter *.jpg |
+            Set-ItemProperty -Name IsFavorite -Value $true
+        Set-ItemProperty mega:\docs -InputObject @{ Label = 'Blue'; IsFavorite = $true }
+        Clear-ItemProperty mega:\report.pdf -Name Label
+        Get-ItemProperty mega:\report.pdf -Name Label, IsFavorite
+
+    The string "false" is read as $false (PowerShell itself would read any
+    text as $true). If one value given with -InputObject is not valid,
+    nothing is changed. -InputObject cannot be used with items piped in;
+    this is a limitation of Set-ItemProperty on every drive. The drive root
+    has no favourite or label.
 
   Too many changes at once
     MEGA refuses changes that come too fast. Each refused change is retried
