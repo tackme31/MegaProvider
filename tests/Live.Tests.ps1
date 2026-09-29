@@ -83,6 +83,9 @@ Describe 'Transfers and listing' {
         $a = Get-Item "$R\a.txt"
         $a.Length | Should -Be (Get-Item "$local\up\a.txt").Length
         ([datetime]::Now - $a.LastWriteTime).Duration() | Should -BeLessThan ([timespan]::FromHours(1))
+        ([datetime]::Now - $a.CreationTime).Duration() | Should -BeLessThan ([timespan]::FromHours(1))
+        $a.IsFavorite, $a.HasLink | Should -Be @($false, $false)
+        $a.Label | Should -BeNullOrEmpty
     }
 
     It 'downloads through the pipeline, and a folder' {
@@ -213,6 +216,7 @@ Describe 'Public links' {
         $file.ExpiresAt | Should -BeNullOrEmpty
         ([datetime]::Now - $file.Created).Duration() | Should -BeLessThan ([timespan]::FromHours(1))
         (Publish-MegaItem "$R\A.txt").Url | Should -Be $file.Url
+        (Get-Item "$R\A.txt").HasLink | Should -BeTrue   # the listing cache must not keep the old value
         (Publish-MegaItem "$R\moved").Url | Should -Match '^https://mega\.nz/folder/[^#]+#.+'
     }
 

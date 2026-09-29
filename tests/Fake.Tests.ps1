@@ -69,6 +69,15 @@ Describe 'Navigation' {
         $item.LastWriteTime | Should -Be $item.Modified
     }
 
+    It 'tells favourites, labels and creation times' {
+        (Get-Item mega:\docs\readme.txt).IsFavorite | Should -BeTrue
+        (Get-Item mega:\photos\2024).IsFavorite | Should -BeTrue
+        (Get-Item mega:\docs\notes.txt).IsFavorite | Should -BeFalse
+        (Get-ChildItem mega:\docs | Where-Object Label -EQ Red).Name | Should -Be 'notes.txt'
+        (Get-Item mega:\docs\readme.txt).Label | Should -BeNullOrEmpty
+        (Get-Item mega:\docs\readme.txt).CreationTime | Should -BeLessOrEqual (Get-Date)
+    }
+
     It 'narrows by category, below a folder and in it' {
         $photos = Get-ChildItem mega:\photos -Recurse -Category Photo
         $photos.Name | Should -Be @('IMG_0001.jpg', 'IMG_0002.jpg', 'IMG_0003.jpg', 'IMG_0004.jpg', 'IMG_0005.jpg')
@@ -238,8 +247,10 @@ Describe 'Public links' {
         $link.IsPasswordProtected | Should -BeFalse
         (Publish-MegaItem mega:\docs\readme.txt).Url | Should -Be $link.Url
         (Get-MegaLink mega:\docs\readme.txt).Url | Should -Be $link.Url
+        (Get-Item mega:\docs\readme.txt).HasLink | Should -BeTrue
         Unpublish-MegaItem mega:\docs\readme.txt
         Get-MegaLink mega:\docs\readme.txt | Should -BeNullOrEmpty
+        (Get-Item mega:\docs\readme.txt).HasLink | Should -BeFalse
         Unpublish-MegaItem mega:\docs\readme.txt   # no link: nothing to do, no error
     }
 

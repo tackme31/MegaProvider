@@ -1,6 +1,13 @@
 namespace MegaProvider.Backend;
 
-public sealed record MegaItem(string Handle, string Name, bool IsFolder, long Size, DateTime Modified);
+/// <param name="CreationTime">When the item was put on MEGA; Modified is the uploaded file's own time.</param>
+/// <param name="HasLink">Whether the item has a public link (Get-MegaLink has the link itself).</param>
+/// <param name="Label">The colour label set in MEGA's apps, or null.</param>
+public sealed record MegaItem(string Handle, string Name, bool IsFolder, long Size, DateTime Modified,
+    DateTime CreationTime, bool IsFavorite, bool HasLink, MegaLabel? Label);
+
+/// <summary>MEGA's colour labels, with MEGA's numbers.</summary>
+public enum MegaLabel { Red = 1, Orange, Yellow, Green, Blue, Purple, Grey }
 
 /// <summary>MEGA's file categories, decided by MEGA from the file name's extension.</summary>
 public enum MegaCategory { Photo, Audio, Video, Document, Pdf, Presentation, Spreadsheet, Archive, Program, Other }

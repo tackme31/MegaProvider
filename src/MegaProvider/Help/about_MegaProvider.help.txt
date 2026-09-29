@@ -15,8 +15,21 @@ LONG DESCRIPTION
         Get-ChildItem mega:\photos -Recurse -Filter *.jpg |
             Rename-Item -NewName { $_.Name -replace '^IMG_', 'trip_' }
 
-    Items have the file system's property names (Length, LastWriteTime, Mode),
-    so filters written for files work unchanged. A folder's Length is $null.
+    Items have the file system's property names (Length, LastWriteTime,
+    CreationTime, Mode), so filters written for files work unchanged. A
+    folder's Length is $null. LastWriteTime is the file's own time, kept from
+    the computer it was uploaded from; CreationTime is when it was put on
+    MEGA. Items also have:
+
+        IsFavorite   marked as a favourite in MEGA's apps
+        HasLink      has a public link (see Get-MegaLink)
+        Label        the colour label set in MEGA's apps: Red, Orange,
+                     Yellow, Green, Blue, Purple, Grey, or $null
+        Handle       MEGA's own identifier for the item
+
+        Get-ChildItem mega:\ -Recurse | Where-Object Label -eq Red
+        Get-ChildItem mega:\ -Recurse -File |
+            Where-Object CreationTime -gt (Get-Date).AddDays(-7)
 
     Every command that changes something supports -WhatIf and -Confirm.
 

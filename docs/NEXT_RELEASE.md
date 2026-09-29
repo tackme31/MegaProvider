@@ -13,3 +13,5 @@
   標準コマンド（`Remove-Item`、`Move-Item` など）がファイルシステムとどう違うかをまとめた。
 - 追加: `Get-ChildItem` の `-Category`（Photo、Video、Document などの種類）と `-Favorite`（お気に入り）。
   `-Recurse` と一緒に使うと MEGA の索引を引くので、大きなドライブでも速い。
+- 追加: `mega:` の項目に `CreationTime`（MEGA に置かれた日時）、`IsFavorite`、`HasLink`（公開リンクの有無）、
+  `Label`（色ラベル）。`Where-Object` で絞れる。

@@ -101,7 +101,7 @@
 
 ```
 → {"id":1,"op":"list","args":{"handle":"xxxxxxxx"}}
-← {"id":1,"ok":true,"result":[{"handle":"...","name":"docs","folder":true,"size":0,"mtime":1756022310}]}
+← {"id":1,"ok":true,"result":[{"handle":"...","name":"docs","folder":true,"size":0,"mtime":1756022310,"ctime":1756022310,"favourite":false,"exported":false,"label":0}]}
 ← {"id":2,"ok":false,"error":{"code":-9,"message":"Not found"}}
 ← {"id":3,"progress":{"done":1048576,"total":5242880}}      （転送中。最後に ok の行が来る）
 ← {"id":4,"progress":{"stage":"download","done":1048576,"total":5242880}}   （login / resume の段階）
@@ -113,7 +113,8 @@
 
 - ハンドルは MEGA の 8 文字の base64（Web 版や MEGAcmd の `H:xxxxxxxx` と同じ）。フォルダの引数で
   `null` や省略はクラウドドライブのルート。
-- `mtime` は Unix 時間（秒）。
+- `mtime` / `ctime` は Unix 時間（秒）。`ctime` は MEGA に置かれた日時、`mtime` はファイル自身の更新日時（フォルダは作成日時）。
+  `label` は色ラベル（0 が無し、1〜7 が Red、Orange、Yellow、Green、Blue、Purple、Grey）。
 - エラーコード: 負の値は SDK の `MegaError`（-3 EAGAIN、-9 ENOENT、-11 EACCESS、-12 EEXIST、-13 EINCOMPLETE＝転送の中断、
   -26 2FA が必要）。正の値はホスト独自（1 要求の形が不正、2 ログインしていない、3 転送中・ログイン中なので `shutdown` しない）。
 - **転送の中断は、クライアントが接続を切ることで伝える**。ホストは進捗を書けなくなった時点で転送を取り消す。

@@ -10,6 +10,8 @@ public sealed class FakeBackend : IMegaBackend
         public required bool IsFolder;
         public long Size;
         public DateTime Modified = DateTime.Now;
+        public DateTime Created = DateTime.Now;
+        public MegaLabel? Label;
         public Node? Parent;
         public Node? RestoreParent;
         public bool IsFavorite;
@@ -17,7 +19,7 @@ public sealed class FakeBackend : IMegaBackend
         public DateTime? LinkExpires;
         public List<Node> Children = new();
 
-        public MegaItem ToItem() => new(Handle, Name, IsFolder, Size, Modified);
+        public MegaItem ToItem() => new(Handle, Name, IsFolder, Size, Modified, Created, IsFavorite, LinkCreated is not null, Label);
     }
 
     private readonly Node _root = new() { Handle = "root", Name = "", IsFolder = true };
@@ -28,7 +30,7 @@ public sealed class FakeBackend : IMegaBackend
     {
         var docs = Add(_root, "docs", true);
         Add(docs, "readme.txt", false, 1200).IsFavorite = true;
-        Add(docs, "notes.txt", false, 340);
+        Add(docs, "notes.txt", false, 340).Label = MegaLabel.Red;
         var photos = Add(_root, "photos", true);
         var y2024 = Add(photos, "2024", true);
         y2024.IsFavorite = true;

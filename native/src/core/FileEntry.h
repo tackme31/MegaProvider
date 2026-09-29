@@ -12,6 +12,8 @@ struct FileEntry
     bool hasThumbnail = false;
     bool isFavourite = false;
     bool isExported = false;
+    std::int64_t creationTime = 0; // MegaProvider: when the node was put on MEGA
+    int label = 0;                 // MegaProvider: MegaNode::NODE_LBL_*, 0 = none
 
     // Field-by-field, not <=>-defaulted: this project builds at C++17, and gmock
     // builds an Eq() matcher over vectors of these.
@@ -20,6 +22,6 @@ struct FileEntry
         return name == other.name && handle == other.handle && sizeBytes == other.sizeBytes &&
                isFolder == other.isFolder && modificationTime == other.modificationTime &&
                hasThumbnail == other.hasThumbnail && isFavourite == other.isFavourite &&
-               isExported == other.isExported;
+               isExported == other.isExported && creationTime == other.creationTime && label == other.label;
     }
 };

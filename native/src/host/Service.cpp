@@ -99,7 +99,11 @@ Json entryToJson(const FileEntry& e)
             {"name", e.name},
             {"folder", e.isFolder},
             {"size", e.sizeBytes},
-            {"mtime", e.modificationTime}};
+            {"mtime", e.modificationTime},
+            {"ctime", e.creationTime},
+            {"favourite", e.isFavourite},
+            {"exported", e.isExported},
+            {"label", e.label}};
 }
 
 Json entriesToJson(const std::vector<FileEntry>& entries)

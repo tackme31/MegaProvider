@@ -8,7 +8,7 @@ namespace MegaProvider.Backend.Host;
 /// </summary>
 internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBackend
 {
-    private static readonly MegaItem Root = new("", "", true, 0, DateTime.MinValue);
+    private static readonly MegaItem Root = new("", "", true, 0, DateTime.MinValue, DateTime.MinValue, false, false, null);
 
     // PowerShell re-resolves each output item's path, which re-lists (and re-parses) every
     // ancestor: without this, `ls -Recurse` on a 700-item folder took 2.4 s. Short enough that
@@ -238,7 +238,11 @@ internal sealed class HostBackend(HostClient client, HostAuth auth) : IMegaBacke
         n["name"]!.GetValue<string>(),
         n["folder"]!.GetValue<bool>(),
         n["size"]!.GetValue<long>(),
-        DateTimeOffset.FromUnixTimeSeconds(n["mtime"]!.GetValue<long>()).LocalDateTime);
+        DateTimeOffset.FromUnixTimeSeconds(n["mtime"]!.GetValue<long>()).LocalDateTime,
+        DateTimeOffset.FromUnixTimeSeconds(n["ctime"]!.GetValue<long>()).LocalDateTime,
+        n["favourite"]!.GetValue<bool>(),
+        n["exported"]!.GetValue<bool>(),
+        n["label"]!.GetValue<int>() is >= 1 and <= 7 and var label ? (MegaLabel)label : null);
 
     private MegaItem RequireFolder(string path)
     {

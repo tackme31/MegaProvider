@@ -31,7 +31,7 @@
 | コマンド | 偽 | 備考 |
 |---|---|---|
 | `Set-Location`（`cd`） | ✅ | 大文字と小文字の違いは吸収する |
-| `Get-ChildItem`（`ls`） | ✅ | `-Recurse`、`-Filter`、`-Name`、`-File`、`-Directory` に対応。`-Category <種類>`（Photo、Video、Document など。MEGA が拡張子から決める）と `-Favorite`（お気に入り）で絞れる。`-Recurse` と組み合わせると木をたどらず MEGA の索引を 1 回引く（ホストの `search`）。お気に入りのフォルダはそれ自体だけが出る。表示はファイルシステムと同じ並び（`.format.ps1xml`）。`Length`・`LastWriteTime`・`Mode` もファイルシステムと同じ名前で使える（`.types.ps1xml`。フォルダの `Length` は `$null`、`LastWriteTime` は作成日時） |
+| `Get-ChildItem`（`ls`） | ✅ | `-Recurse`、`-Filter`、`-Name`、`-File`、`-Directory` に対応。`-Category <種類>`（Photo、Video、Document など。MEGA が拡張子から決める）と `-Favorite`（お気に入り）で絞れる。`-Recurse` と組み合わせると木をたどらず MEGA の索引を 1 回引く（ホストの `search`）。お気に入りのフォルダはそれ自体だけが出る。表示はファイルシステムと同じ並び（`.format.ps1xml`）。`Length`・`LastWriteTime`・`Mode` もファイルシステムと同じ名前で使える（`.types.ps1xml`。フォルダの `Length` は `$null`、`LastWriteTime` は作成日時）。MEGA 固有の `CreationTime`（MEGA に置かれた日時）、`IsFavorite`、`HasLink`、`Label`（色ラベル、無ければ `$null`）も持つ |
 | `Get-Item` | ✅ | |
 | `Test-Path` | ✅ | |
 | タブ補完 | ✅ | |
