@@ -89,14 +89,27 @@ Your password is never stored.
 | Cmdlet | Behaviour |
 |---|---|
 | `Set-Location` (`cd`), `Get-Item`, `Test-Path`, `Resolve-Path`, tab completion | As on a local drive. If no name matches exactly, a case-insensitive match is used (MEGA names are case-sensitive). |
-| `Get-ChildItem` (`dir`, `gci`) | Supports `-Recurse`, `-Filter`, `-Name`, `-File`, `-Directory`. |
+| `Get-ChildItem` (`dir`, `gci`) | Supports `-Recurse`, `-Filter`, `-Name`, `-File`, `-Directory`, and two of its own: `-Category` (MEGA's file type: `Photo`, `Audio`, `Video`, `Document`, `Pdf`, `Presentation`, `Spreadsheet`, `Archive`, `Program`, `Other`) and `-Favorite`. With `-Recurse`, these two use MEGA's index, so they stay fast on a large drive. |
 | `Rename-Item` | Refuses a name that another item in the same folder already has. |
 | `Move-Item` | The destination must be an existing folder. Refuses if it already holds an item of the same name. |
 | `Copy-Item` | Within `mega:` only. Refuses if the destination already holds the name. A folder needs `-Recurse` and is copied with everything in it. |
 | `Remove-Item` | **Moves the item to the Rubbish Bin.** MegaProvider never deletes permanently; use `Restore-MegaItem` to undo. |
 | `New-Item -ItemType Directory` | Creates a folder. |
+| `Get-ItemProperty`, `Set-ItemProperty`, `Clear-ItemProperty` | Read, set and clear an item's favourite (`IsFavorite`) and colour label (`Label`: `Red`, `Orange`, `Yellow`, `Green`, `Blue`, `Purple`, `Grey`). |
 
 `-WhatIf` and `-Confirm` work on every command that changes something.
+
+Items on `mega:` have the property names of the file system's items (`Name`, `FullName`, `Length`,
+`LastWriteTime`, `CreationTime`, `Mode`), plus `IsFavorite`, `HasLink` (has a public link) and `Label`,
+so they can be filtered with `Where-Object`:
+
+```powershell
+Get-ChildItem mega:\photos -Recurse -Category Photo | Where-Object Length -gt 10MB
+Get-ChildItem mega:\photos -Filter *.jpg | Set-ItemProperty -Name Label -Value Red
+```
+
+`Get-Help about_MegaProvider` lists where the standard cmdlets behave differently on `mega:`, and every
+MegaProvider cmdlet has `Get-Help` with examples.
 
 On Linux, `ls` is the system command, not an alias of `Get-ChildItem` (PowerShell keeps `ls`, `cp`, `mv`,
 `rm` and `cat` for the system there), so it does not see `mega:`. Use `dir` or `gci`. Paths are shown with
@@ -119,6 +132,23 @@ and a local drive (PowerShell does not allow that across providers), which is wh
 Get-ChildItem ~/photos/*.jpg | Send-MegaItem -Destination mega:\photos
 Get-ChildItem mega:\docs -File | Receive-MegaItem -Destination ~/backup
 Get-MegaRubbishItem report* | Restore-MegaItem
+```
+
+### Public links
+
+| Command | What it does |
+|---|---|
+| `Publish-MegaItem [-Path] <mega:\...> [-ExpiresAt <date> \| -NoExpiry] [-Password <SecureString>]` | Creates a public link, or returns the existing one. `-ExpiresAt` and `-Password` need a paid MEGA plan. |
+| `Unpublish-MegaItem [-Path] <mega:\...>` | Removes the link. |
+| `Get-MegaLink [[-Path] <mega:\...>] [-Recurse]` | Lists the links of the given items (and below them, with `-Recurse`), or every link without `-Path`. |
+
+The result has `Url` (the link to hand out) and, to send separately, `UrlWithoutKey` and `Key`.
+**MEGA does not keep password-protected links**: `Url` from `Publish-MegaItem -Password` cannot be shown
+again later, so save it right away.
+
+```powershell
+Get-ChildItem mega:\share -File | Publish-MegaItem | Select-Object Name, Url
+Get-MegaLink mega:\share -Recurse | Unpublish-MegaItem
 ```
 
 ## Cautions
